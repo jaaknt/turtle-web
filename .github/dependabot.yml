@@ -8,5 +8,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-  # The uv entry (directory: /api) is added in Step 3, once api/pyproject.toml exists:
-  # Dependabot reports an error for an ecosystem whose manifest is missing.
+  - package-ecosystem: uv
+    directory: /api
+    schedule:
+      interval: weekly

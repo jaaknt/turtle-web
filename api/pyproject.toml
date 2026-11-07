@@ -1,0 +1,41 @@
+[project]
+name = "turtleweb"
+version = "0.1.0"
+description = "Read-only API behind the turtle-web dashboard"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.162.2",
+    "psycopg[binary,pool]>=3.3.8",
+    "pydantic-settings>=2.16.2",
+    "sqlalchemy>=2.1.8",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""  # flat layout: the package is api/turtleweb, not api/src/turtleweb
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 140
+lint.select = ["E", "W", "F", "I", "B", "C4", "UP"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["turtleweb", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,20 @@
+# Demo database for local development. Port 5433, so it never collides with a local turtle
+# Postgres on 5432. Schema loads on first start; data comes from db/seed_demo.py:
+#
+#   docker compose up -d --wait && uv run db/seed_demo.py
+#
+# `docker compose down -v` throws the data away; the next `up` starts from an empty schema.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: trading
+      POSTGRES_PASSWORD: demo
+    ports: ["5433:5432"]
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trading"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

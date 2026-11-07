@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # The uv entry (directory: /api) is added in Step 3, once api/pyproject.toml exists:
+  # Dependabot reports an error for an ecosystem whose manifest is missing.

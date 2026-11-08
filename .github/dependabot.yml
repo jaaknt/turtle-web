@@ -10,6 +10,10 @@ updates:
       # Any update, not just majors: a later 4.x or 2.x could ship under the new licence too.
       - dependency-name: primevue
       - dependency-name: "@primeuix/themes"
+      # TypeScript 7 is the native (Go) compiler, with no JavaScript API: vue-tsc crashes on it
+      # (ERR_PACKAGE_PATH_NOT_EXPORTED), so type-check and build fail. Lift once vue-tsc supports it.
+      - dependency-name: typescript
+        versions: [">= 7"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

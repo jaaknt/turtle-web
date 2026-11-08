@@ -9,6 +9,7 @@ const releaseUrl = __APP_RELEASE_URL__
     <span class="brand">Turtle</span>
     <nav>
       <RouterLink to="/">Portfolio</RouterLink>
+      <RouterLink to="/analytics">Analytics</RouterLink>
       <RouterLink to="/transactions">Transactions</RouterLink>
       <RouterLink to="/chart">Chart</RouterLink>
       <RouterLink to="/signals">Signals</RouterLink>

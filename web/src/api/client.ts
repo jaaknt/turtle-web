@@ -5,6 +5,9 @@ export type Transaction = components['schemas']['Transaction']
 export type ChartData = components['schemas']['ChartData']
 export type SymbolRow = components['schemas']['Symbol']
 export type SignalRow = components['schemas']['SignalRow']
+export type Analytics = components['schemas']['Analytics']
+export type PeriodReturn = components['schemas']['PeriodReturn']
+export type Bin = components['schemas']['Bin']
 
 /** A non-2xx response; `message` carries FastAPI's `detail` when the body has one. */
 export class ApiError extends Error {
@@ -49,6 +52,7 @@ let symbolsOnce: Promise<SymbolRow[]> | null = null
 
 export const api = {
   portfolio: () => get<Portfolio>('/portfolio'),
+  analytics: () => get<Analytics>('/analytics'),
   transactions: () => get<Transaction[]>('/transactions'),
   symbols: () =>
     (symbolsOnce ??= get<SymbolRow[]>('/symbols').catch((e: unknown) => {

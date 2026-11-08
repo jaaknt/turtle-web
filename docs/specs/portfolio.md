@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Steps 1–5 are done. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Steps 1–6 are done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -362,6 +362,10 @@ configured order; `curve` has one point per series day; the demo's 2:1 split lea
 the cumulative curve; `start` is `None` and the lists are empty with no transactions.
 
 ### Step 6 — Frontend: route, types and charts
+
+**Done.** Implemented in `turtle-web` 2026-11-08. `AnalyticsView.vue` is a placeholder (states
+and the period) until Step 7. `BarChart`'s SVG stretches to its box, so its edge labels are HTML
+under it: at most about eight, always 0 and both outer edges. With no bins it shows a sentence.
 
 - `npm run gen:api` regenerates `openapi.json` and `src/api/schema.d.ts`; CI fails if this is
   forgotten.

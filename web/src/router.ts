@@ -5,6 +5,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', component: () => import('./views/PortfolioView.vue') },
+    { path: '/analytics', component: () => import('./views/AnalyticsView.vue') },
     { path: '/transactions', component: () => import('./views/TransactionsView.vue') },
     { path: '/chart/:symbol?', name: 'chart', component: () => import('./views/ChartView.vue'), props: true },
     { path: '/signals', component: () => import('./views/SignalsView.vue') },

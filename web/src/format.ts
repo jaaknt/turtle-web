@@ -17,6 +17,13 @@ const pctFmt = new Intl.NumberFormat('en-US', {
   signDisplay: 'exceptZero',
 })
 
+// Axis labels: as few digits as the value needs, so bin edges read -2%, 0%, +0.5%.
+const pctShortFmt = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  maximumFractionDigits: 2,
+  signDisplay: 'exceptZero',
+})
+
 const numFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 
 export function money(v: number | null | undefined): string {
@@ -25,6 +32,10 @@ export function money(v: number | null | undefined): string {
 
 export function pct(v: number | null | undefined): string {
   return v == null ? DASH : pctFmt.format(v)
+}
+
+export function pctShort(v: number | null | undefined): string {
+  return v == null ? DASH : pctShortFmt.format(v)
 }
 
 export function num(v: number | null | undefined): string {

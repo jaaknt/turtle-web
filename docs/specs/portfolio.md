@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Steps 1–2 are done. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Steps 1–3 are done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -106,22 +106,22 @@ the quantstats function each one is checked against in [Step 4](#step-4--validat
 | Metric | Definition | quantstats |
 | --- | --- | --- |
 | Cumulative return | `I_n − 1` | `stats.comp` |
-| CAGR | `I_n^(1/years) − 1`; see Step 4 for how quantstats counts `years` | `stats.cagr` |
+| CAGR | `I_n^(252/n) − 1`: quantstats counts `years` as returns ÷ 252, not calendar days | `stats.cagr` |
 | Volatility (annualised) | `stdev(r) · √252` | `stats.volatility` |
 | Sharpe | `mean(r) / stdev(r) · √252` | `stats.sharpe` |
 | Sortino | `mean(r) / √(Σ min(r, 0)² / n) · √252` | `stats.sortino` |
-| Max drawdown | `min_t(I_t / max_{s≤t} I_s − 1)` | `stats.max_drawdown` |
+| Max drawdown | `min_t(I_t / max_{s≤t} I_s − 1)`, with a drawdown under `1e-12` read as 0 (float noise after an exact recovery; quantstats compares with 0) | `stats.max_drawdown` |
 | Calmar | `CAGR / abs(max drawdown)` | `stats.calmar` |
-| Longest drawdown | Most days from leaving a peak to regaining it (or to the last day) | `stats.drawdown_details` |
+| Longest drawdown | The longest drawdown period's `days` (below) | `stats.drawdown_details` |
 | Best / worst day | `max(r)`, `min(r)` | `stats.best`, `stats.worst` |
-| Best / worst month | Of the monthly returns below | `stats.best(aggregate="ME")` |
+| Best / worst month | Of the monthly returns below | `stats.best(aggregate="ME")`; not `"month"`, which merges the same month of different years |
 | Win rate, days | Share of non-zero days with `r > 0` | `stats.win_rate` |
 | Win rate, months | The same over monthly returns | `stats.win_rate(aggregate="ME")` |
 | Beta vs first benchmark | `cov(r, b) / var(b)` | `stats.greeks` |
 | Correlation vs first benchmark | Pearson `r` of the two daily series | `pandas.Series.corr` |
 | Monthly return | `∏(1 + r)` over the month's days `− 1`; a month the history starts or ends in is flagged partial | `stats.monthly_returns` |
 | Yearly return | The same over a year | `stats.yearly_returns` |
-| Drawdown periods | Start (first day under water), valley, end (back to the peak, or `None` while under water), depth, length in days | `stats.drawdown_details` |
+| Drawdown periods | Start (first day under water), valley, end (last day under water, or the last day while still under), depth, calendar days from start to end inclusive | `stats.drawdown_details` |
 
 Beta and correlation are filled in for the portfolio column only.
 
@@ -185,24 +185,27 @@ over cost basis; a trailing fill-only day is left out.
 
 ### Step 3 — The metrics
 
+**Done.** Implemented in `turtle-web` 2026-11-08, with the definitions read from quantstats 0.0.86's
+source (turtle-backtest's virtualenv), so Step 4 confirms them rather than discovers them.
+
 Also in `analytics.py`, each a function of `Returns`, plus the aggregations:
 
 ```python
 @dataclass(frozen=True)
 class Metrics:
     cumulative_return: float
-    cagr: float | None
+    cagr: float
     volatility: float | None  # None with fewer than 2 returns
     sharpe: float | None
     sortino: float | None  # None without a down day
     calmar: float | None  # None without a drawdown
     max_drawdown: float  # ≤ 0
-    longest_drawdown_days: int
+    longest_drawdown_days: int  # calendar days; 0 without a drawdown
     best_day: float
     worst_day: float
     best_month: float
     worst_month: float
-    win_rate_days: float | None  # None when every day is 0
+    win_rate_days: float | None  # of non-zero days; None when every day is 0 (quantstats says 0)
     win_rate_months: float | None
     beta: float | None  # vs the first benchmark; portfolio only
     correlation: float | None
@@ -213,12 +216,12 @@ def monthly(r: Returns) -> list[PeriodReturn]: ...  # year, month, value, partia
 def yearly(r: Returns) -> list[PeriodReturn]: ...
 def cumulative(r: Returns) -> list[float]: ...  # I_t − 1, for the chart
 def underwater(r: Returns) -> list[float]: ...  # I_t / running peak − 1, for the chart
-def drawdown_periods(r: Returns, top: int = 5) -> list[DrawdownPeriod]: ...  # deepest first
+def drawdown_periods(r: Returns) -> list[DrawdownPeriod]: ...  # all of them, deepest first
 def histogram(values: list[float], width: float) -> list[Bin]: ...  # lower, upper, count
 ```
 
 Histogram bins have fixed widths, 2% for monthly and 0.5% for daily returns, with an edge at 0,
-so a gain and a loss never share a bar. Fixed widths read better than a computed bin count, and
+so a gain and a loss never share a bar: a loss lands below 0 however small it is. Fixed widths read better than a computed bin count, and
 they keep bins comparable from one month to the next.
 
 Unit tests use short hand-computed series: a constant return, a single loss, a recovery to the
@@ -249,18 +252,16 @@ The JSON holds synthetic numbers only, never real data, per the README's rule.
 `pytest.approx(rel=1e-9)`. Every metric is one parametrized case, so a mismatch names the
 metric.
 
-Expect to correct some definitions to quantstats' when the oracle first runs. These are the
-likely ones:
+Step 3 took the definitions in the [metric table](#metric-definitions) from quantstats 0.0.86's
+source; the oracle confirms them. Two quantstats behaviours are deliberately not copied, so the
+oracle series avoids them:
 
-- **CAGR's `years`**: calendar days divided by 365, or the number of periods divided by 252.
-- **Drawdown base**: whether the index starts at 1 before the first return, so that a loss on
-  day one counts as a drawdown.
-- **Sortino's downside**: divided by all `n` days, or by the down days only.
-- **Win rate**: whether zero days are excluded.
-- **Month ends**: the `"ME"` alias of pandas 2.2 and later, versus `"M"`.
+- `win_rate` returns 0, not "no value", when every day is 0.
+- `drawdown_details` finds a period's start from the non-drawdown day before it, so a drawdown
+  that begins on the first day can go unreported. The oracle series starts with a gain.
 
-Each correction goes into the metric table above and a one-line comment in the code, so that
-the next reader does not "fix" it back.
+Any new difference goes into the metric table and a one-line comment in the code, so that the
+next reader does not "fix" it back.
 
 **4b. The live portfolio, checked by hand.** `api/scripts/compare_quantstats.py` fetches
 `/api/analytics?daily=true` from a running API (the demo database or, over Tailscale, the VPS),
@@ -293,15 +294,16 @@ class PeriodReturn(BaseModel):
     year: int
     month: int | None  # None for a yearly return
     value: float
-    partial: bool  # the history starts or ends inside this period
+    partial: bool  # the series' first or last period, so it may not cover the whole of it
 
 
 class DrawdownPeriod(BaseModel):
     start: date
     valley: date
-    end: date | None  # None while still under water
+    end: date  # the last day under water
     depth: float  # ≤ 0
     days: int
+    ongoing: bool  # still under water on the last day
 
 
 class Bin(BaseModel):
@@ -331,7 +333,7 @@ class Analytics(BaseModel):
     benchmarks: list[str]  # configured order, as on /api/portfolio
     series: list[SeriesAnalytics]  # the portfolio first, then each benchmark
     curve: list[CurvePoint]
-    drawdowns: list[DrawdownPeriod]  # the portfolio's five worst
+    drawdowns: list[DrawdownPeriod]  # the portfolio's five worst: drawdown_periods(r)[:5]
     histogram_monthly: list[Bin]  # the portfolio's
     histogram_daily: list[Bin]
 ```
@@ -374,7 +376,7 @@ the cumulative curve; `start` is `None` and the lists are empty with no transact
 - **Monthly returns**: `MonthlyReturns`, the portfolio's. A selector switches to a benchmark's.
 - **Distribution of returns**: `BarChart` with a Monthly / Daily toggle. It defaults to daily
   while there are fewer than 12 months, because a handful of monthly bars says little.
-- **Worst drawdowns**: a `DataTable` over `drawdowns`; "ongoing" when `end` is `None`.
+- **Worst drawdowns**: a `DataTable` over `drawdowns`; "ongoing" when `ongoing` is set.
 - **Footer**: the [return model's caveats](#the-return-model), in a component next to
   `PnlCaveats.vue`, kept in step with this document as that one is with web.md.
 

@@ -1,11 +1,28 @@
-"""The return series, one rule per test, on hand-built ledgers. No database."""
+"""The return series and the metrics over them, one rule per test, on hand-built data. No database."""
 
 import math
+import statistics
+from dataclasses import replace
+from datetime import date
 
 import pytest
 
 from tests.builders import BENCH, buy, closes, day, sell
-from turtleweb.analytics import benchmark_returns, portfolio_returns
+from turtleweb.analytics import (
+    Bin,
+    DrawdownPeriod,
+    PeriodReturn,
+    Returns,
+    benchmark_returns,
+    cumulative,
+    drawdown_periods,
+    histogram,
+    metrics,
+    monthly,
+    portfolio_returns,
+    underwater,
+    yearly,
+)
 from turtleweb.ledger import build
 
 
@@ -69,3 +86,123 @@ def test_no_fills_is_an_empty_series() -> None:
     ledger = build([], closes(BENCH, [10]), [BENCH])
     assert portfolio_returns(ledger).values == []
     assert benchmark_returns(ledger, BENCH).values == []
+
+
+def rounded[T: DrawdownPeriod | PeriodReturn](records: list[T], field: str) -> list[T]:
+    """The records with one float field rounded to 9 places, so they compare with ==."""
+    return [replace(x, **{field: round(getattr(x, field), 9)}) for x in records]
+
+
+def daily(*values: float) -> Returns:
+    """Consecutive days from day(0)."""
+    return Returns([day(i) for i in range(len(values))], list(values))
+
+
+def test_a_constant_return_compounds_and_has_no_risk() -> None:
+    m = metrics(daily(0.01, 0.01, 0.01))
+    assert m.cumulative_return == pytest.approx(1.01**3 - 1)
+    assert m.cagr == pytest.approx(1.01**252 - 1)  # years = 3 returns / 252
+    assert m.volatility == pytest.approx(0)
+    assert (m.sharpe, m.sortino, m.calmar) == (None, None, None)
+    assert (m.max_drawdown, m.longest_drawdown_days) == (0, 0)
+    assert m.win_rate_days == 1
+
+
+def test_a_single_loss_sets_the_drawdown_and_the_downside() -> None:
+    r = daily(0.10, -0.20, 0.05)
+    m = metrics(r)
+    assert m.max_drawdown == pytest.approx(-0.20)
+    assert m.sortino == pytest.approx((-0.05 / 3) / math.sqrt(0.04 / 3) * math.sqrt(252))
+    assert m.sharpe == pytest.approx((-0.05 / 3) / statistics.stdev([0.10, -0.20, 0.05]) * math.sqrt(252))
+    assert m.calmar == pytest.approx(m.cagr / 0.20)
+    assert (m.best_day, m.worst_day) == (0.10, -0.20)
+    assert m.win_rate_days == pytest.approx(2 / 3)
+    assert underwater(r) == pytest.approx([0, -0.20, 1.1 * 0.8 * 1.05 / 1.1 - 1])
+    assert rounded(drawdown_periods(r), "depth") == [DrawdownPeriod(day(1), day(1), day(2), -0.20, 2, ongoing=True)]
+
+
+def test_a_recovery_to_the_exact_previous_peak_closes_the_drawdown() -> None:
+    r = daily(0.25, -0.20, 0.25, 0.01)  # 1.25 -> 1.0 -> 1.25: back at the peak on day 2
+    assert underwater(r)[2] == 0
+    assert rounded(drawdown_periods(r), "depth") == [DrawdownPeriod(day(1), day(1), day(1), -0.20, 1, ongoing=False)]
+    assert metrics(r).longest_drawdown_days == 1
+
+
+def test_a_loss_on_day_one_is_a_drawdown() -> None:
+    # the index starts at 1 before the first return, as quantstats' phantom baseline does
+    r = daily(-0.10, 0.20)
+    assert metrics(r).max_drawdown == pytest.approx(-0.10)
+    assert drawdown_periods(r)[0].start == day(0)
+
+
+def test_drawdown_periods_are_all_there_deepest_first() -> None:
+    r = daily(-0.05, 0.10, -0.20, 0.30, -0.10, 0.20)
+    assert [round(p.depth, 6) for p in drawdown_periods(r)] == [-0.20, -0.10, -0.05]
+
+
+def test_cumulative_is_the_compounded_return_so_far() -> None:
+    assert cumulative(daily(0.10, -0.10)) == pytest.approx([0.10, 1.1 * 0.9 - 1])
+
+
+def test_monthly_and_yearly_returns_compound_and_flag_the_ends_as_partial() -> None:
+    dates = [date(2026, 1, 30), date(2026, 2, 2), date(2026, 2, 3), date(2026, 3, 2)]
+    r = Returns(dates, [0.10, 0.10, -0.10, 0.05])
+    assert rounded(monthly(r), "value") == [
+        PeriodReturn(2026, 1, 0.10, partial=True),
+        PeriodReturn(2026, 2, round(1.1 * 0.9 - 1, 9), partial=False),
+        PeriodReturn(2026, 3, 0.05, partial=True),
+    ]
+    assert rounded(yearly(r), "value") == [PeriodReturn(2026, None, round(1.1 * 1.1 * 0.9 * 1.05 - 1, 9), partial=True)]
+    m = metrics(r)
+    assert (m.best_month, m.worst_month) == pytest.approx((0.10, 1.1 * 0.9 - 1))
+    assert m.win_rate_months == pytest.approx(2 / 3)
+
+
+def test_beta_and_correlation_against_a_benchmark() -> None:
+    bench = daily(0.01, -0.02, 0.03, 0.00)
+    m = metrics(daily(0.02, -0.04, 0.06, 0.00), bench)  # twice the benchmark every day
+    assert (m.beta, m.correlation) == pytest.approx((2.0, 1.0))
+    assert metrics(daily(0.01, 0.02)).beta is None  # no benchmark
+    assert metrics(daily(0.01, 0.02), daily(0.01, 0.01)).beta is None  # a flat benchmark has no variance
+
+
+def test_one_return_has_no_volatility_and_no_returns_raise() -> None:
+    m = metrics(daily(0.05))
+    assert (m.volatility, m.sharpe) == (None, None)
+    with pytest.raises(ValueError, match="at least one return"):
+        metrics(daily())
+
+
+def test_a_series_of_zero_days_has_no_win_rate() -> None:
+    assert metrics(daily(0.0, 0.0)).win_rate_days is None
+
+
+def test_histogram_bins_have_an_edge_at_zero_and_keep_empty_bins() -> None:
+    bins = histogram([-0.01, 0.0, 0.004, 0.06], 0.02)
+    assert [Bin(round(b.lower, 6), round(b.upper, 6), b.count) for b in bins] == [
+        Bin(-0.02, 0.0, 1),
+        Bin(0.0, 0.02, 2),
+        Bin(0.02, 0.04, 0),
+        Bin(0.04, 0.06, 0),
+        Bin(0.06, 0.08, 1),  # 0.06 / 0.02 is 2.9999999999999996 in floats: it still lands on its own edge
+    ]
+    assert histogram([], 0.02) == []
+
+
+def test_a_recovery_short_of_the_peak_by_float_noise_closes_the_drawdown() -> None:
+    # 1.1 -> 1.023 -> back to 1.1, which computes as 1.1 * (1 - 2e-16)
+    r = daily(0.10, -0.07, 1.1 / (1.1 * 0.93) - 1, 0.01)
+    assert underwater(r)[2] == 0
+    assert [(p.start, p.end) for p in drawdown_periods(r)] == [(day(1), day(1))]
+
+
+def test_a_benchmark_on_other_dates_is_rejected() -> None:
+    with pytest.raises(ValueError, match="same dates"):
+        metrics(daily(0.01, 0.02), daily(0.01))
+
+
+def test_a_tiny_loss_lands_below_zero_and_a_bad_width_is_rejected() -> None:
+    assert [(round(b.lower, 6), b.count) for b in histogram([-1e-12, 0.0], 0.02)] == [(-0.02, 1), (0.0, 1)]
+    assert [round(b.lower, 6) for b in histogram([-0.02, -0.03], 0.02)] == [-0.04, -0.02]  # -0.02 is on its own edge
+    with pytest.raises(ValueError, match="positive"):
+        histogram([0.01], 0)

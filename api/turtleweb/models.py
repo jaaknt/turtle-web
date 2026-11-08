@@ -125,3 +125,83 @@ class SignalRow(BaseModel):
     curr_date: date | None
     change_pct: float | None  # adjusted, so split-safe total return from entry
     bought: bool
+
+
+class Metrics(BaseModel):
+    """The metrics table's column for one series; see analytics.Metrics. A ratio over a zero denominator is None."""
+
+    cumulative_return: float
+    cagr: float
+    volatility: float | None
+    sharpe: float | None
+    sortino: float | None
+    calmar: float | None
+    max_drawdown: float  # ≤ 0
+    longest_drawdown_days: int  # calendar days
+    best_day: float
+    worst_day: float
+    best_month: float
+    worst_month: float
+    win_rate_days: float | None  # of non-zero days
+    win_rate_months: float | None
+    beta: float | None  # vs the first benchmark; the portfolio's only
+    correlation: float | None
+
+
+class PeriodReturn(BaseModel):
+    """A month's or a year's compounded return."""
+
+    year: int
+    month: int | None  # None for a yearly return
+    value: float
+    partial: bool  # the series' first or last period, so it may not cover the whole of it
+
+
+class DrawdownPeriod(BaseModel):
+    """One stretch under water."""
+
+    start: date
+    valley: date
+    end: date  # the last day under water
+    depth: float  # ≤ 0
+    days: int  # calendar days from start to end, both included
+    ongoing: bool  # still under water on the last day
+
+
+class Bin(BaseModel):
+    """One histogram bar: count of values in [lower, upper)."""
+
+    lower: float
+    upper: float
+    count: int
+
+
+class SeriesAnalytics(BaseModel):
+    """One series' metrics and period returns."""
+
+    symbol: str  # "portfolio" (analytics.PORTFOLIO), or a benchmark symbol
+    metrics: Metrics
+    monthly: list[PeriodReturn]
+    yearly: list[PeriodReturn]
+
+
+class CurvePoint(BaseModel):
+    """Every series' cumulative return and drawdown at the end of one day."""
+
+    date: date
+    cumulative: dict[str, float]  # by series symbol
+    drawdown: dict[str, float]  # ≤ 0
+
+
+class Analytics(BaseModel):
+    """The analytics page: time-weighted returns of the portfolio against each benchmark held; see analytics.Report."""
+
+    start: date | None  # None before the first fill
+    end: date | None
+    trading_days: int  # the page flags annualised figures while this is under 252
+    benchmarks: list[str]  # configured order, as on /api/portfolio
+    series: list[SeriesAnalytics]  # the portfolio first, then each benchmark
+    curve: list[CurvePoint]
+    drawdowns: list[DrawdownPeriod]  # the portfolio's five worst
+    histogram_monthly: list[Bin]  # the portfolio's
+    histogram_daily: list[Bin]

@@ -13,8 +13,8 @@ from typing import Annotated, Any
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from turtleweb import db, ledger, sql
-from turtleweb.models import Bar, ChartData, ChartFill, HistoryPoint, Portfolio, Position, SignalRow, Symbol, Transaction
+from turtleweb import analytics, db, ledger, sql
+from turtleweb.models import Analytics, Bar, ChartData, ChartFill, HistoryPoint, Portfolio, Position, SignalRow, Symbol, Transaction
 from turtleweb.settings import Settings
 
 log = logging.getLogger(__name__)
@@ -125,6 +125,19 @@ def portfolio(request: Request) -> Portfolio:
         positions=positions,
         history=[_point(p) for p in result.history],
     )
+
+
+@router.get("/analytics", response_model=Analytics)
+def portfolio_analytics(request: Request) -> Analytics:
+    """Time-weighted returns of the portfolio and each benchmark: metrics, curves, drawdowns, histograms.
+
+    The same two queries as /portfolio; analytics.report builds it, see docs/specs/portfolio.md.
+
+    Args:
+        request: The incoming request, carrying the engine and settings.
+    """
+    result = analytics.report(_ledger(request, _transactions(request)), _settings(request).benchmark_symbols)
+    return Analytics.model_validate(result, from_attributes=True)  # nested dataclasses convert too
 
 
 @router.get("/transactions", response_model=list[Transaction])

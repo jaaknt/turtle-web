@@ -50,6 +50,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Portfolio Analytics
+         * @description Time-weighted returns of the portfolio and each benchmark: metrics, curves, drawdowns, histograms.
+         *
+         *     The same two queries as /portfolio; analytics.report builds it, see docs/specs/portfolio.md.
+         *
+         *     Args:
+         *         request: The incoming request, carrying the engine and settings.
+         */
+        get: operations["portfolio_analytics_api_analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transactions": {
         parameters: {
             query?: never;
@@ -160,6 +185,30 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * Analytics
+         * @description The analytics page: time-weighted returns of the portfolio against each benchmark held; see analytics.Report.
+         */
+        Analytics: {
+            /** Start */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /** Trading Days */
+            trading_days: number;
+            /** Benchmarks */
+            benchmarks: string[];
+            /** Series */
+            series: components["schemas"]["SeriesAnalytics"][];
+            /** Curve */
+            curve: components["schemas"]["CurvePoint"][];
+            /** Drawdowns */
+            drawdowns: components["schemas"]["DrawdownPeriod"][];
+            /** Histogram Monthly */
+            histogram_monthly: components["schemas"]["Bin"][];
+            /** Histogram Daily */
+            histogram_daily: components["schemas"]["Bin"][];
+        };
+        /**
          * Bar
          * @description One candle.
          */
@@ -176,6 +225,18 @@ export interface components {
             close: number;
             /** Volume */
             volume: number;
+        };
+        /**
+         * Bin
+         * @description One histogram bar: count of values in [lower, upper).
+         */
+        Bin: {
+            /** Lower */
+            lower: number;
+            /** Upper */
+            upper: number;
+            /** Count */
+            count: number;
         };
         /**
          * ChartData
@@ -212,6 +273,52 @@ export interface components {
             /** Price */
             price: number;
         };
+        /**
+         * CurvePoint
+         * @description Every series' cumulative return and drawdown at the end of one day.
+         */
+        CurvePoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Cumulative */
+            cumulative: {
+                [key: string]: number;
+            };
+            /** Drawdown */
+            drawdown: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * DrawdownPeriod
+         * @description One stretch under water.
+         */
+        DrawdownPeriod: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * Valley
+             * Format: date
+             */
+            valley: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Depth */
+            depth: number;
+            /** Days */
+            days: number;
+            /** Ongoing */
+            ongoing: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -239,6 +346,58 @@ export interface components {
             benchmark_pnl: {
                 [key: string]: number;
             };
+        };
+        /**
+         * Metrics
+         * @description The metrics table's column for one series; see analytics.Metrics. A ratio over a zero denominator is None.
+         */
+        Metrics: {
+            /** Cumulative Return */
+            cumulative_return: number;
+            /** Cagr */
+            cagr: number;
+            /** Volatility */
+            volatility: number | null;
+            /** Sharpe */
+            sharpe: number | null;
+            /** Sortino */
+            sortino: number | null;
+            /** Calmar */
+            calmar: number | null;
+            /** Max Drawdown */
+            max_drawdown: number;
+            /** Longest Drawdown Days */
+            longest_drawdown_days: number;
+            /** Best Day */
+            best_day: number;
+            /** Worst Day */
+            worst_day: number;
+            /** Best Month */
+            best_month: number;
+            /** Worst Month */
+            worst_month: number;
+            /** Win Rate Days */
+            win_rate_days: number | null;
+            /** Win Rate Months */
+            win_rate_months: number | null;
+            /** Beta */
+            beta: number | null;
+            /** Correlation */
+            correlation: number | null;
+        };
+        /**
+         * PeriodReturn
+         * @description A month's or a year's compounded return.
+         */
+        PeriodReturn: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number | null;
+            /** Value */
+            value: number;
+            /** Partial */
+            partial: boolean;
         };
         /**
          * Portfolio
@@ -294,6 +453,19 @@ export interface components {
             first_buy: string;
             /** Days Held */
             days_held: number;
+        };
+        /**
+         * SeriesAnalytics
+         * @description One series' metrics and period returns.
+         */
+        SeriesAnalytics: {
+            /** Symbol */
+            symbol: string;
+            metrics: components["schemas"]["Metrics"];
+            /** Monthly */
+            monthly: components["schemas"]["PeriodReturn"][];
+            /** Yearly */
+            yearly: components["schemas"]["PeriodReturn"][];
         };
         /**
          * SignalRow
@@ -444,6 +616,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Portfolio"];
+                };
+            };
+        };
+    };
+    portfolio_analytics_api_analytics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Analytics"];
                 };
             };
         };

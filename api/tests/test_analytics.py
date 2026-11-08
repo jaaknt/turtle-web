@@ -20,6 +20,7 @@ from turtleweb.analytics import (
     metrics,
     monthly,
     portfolio_returns,
+    report,
     underwater,
     yearly,
 )
@@ -206,3 +207,28 @@ def test_a_tiny_loss_lands_below_zero_and_a_bad_width_is_rejected() -> None:
     assert [round(b.lower, 6) for b in histogram([-0.02, -0.03], 0.02)] == [-0.04, -0.02]  # -0.02 is on its own edge
     with pytest.raises(ValueError, match="positive"):
         histogram([0.01], 0)
+
+
+def test_the_report_puts_the_portfolio_first_with_beta_against_the_first_benchmark() -> None:
+    data = closes("A", [100, 110, 99]) + closes(BENCH, [10, 11, 10]) + closes("QQQ.US", [20, 21, 22])
+    rep = report(build([buy(0, "A", 10, 100)], data, [BENCH, "QQQ.US"]), [BENCH, "QQQ.US"])
+    assert [s.symbol for s in rep.series] == ["portfolio", BENCH, "QQQ.US"]
+    assert rep.series[0].metrics.beta is not None
+    assert all(s.metrics.beta is None and s.metrics.correlation is None for s in rep.series[1:])
+    assert (rep.start, rep.end, rep.trading_days) == (day(0), day(2), 3)
+    assert [p.date for p in rep.curve] == [day(0), day(1), day(2)]
+    assert rep.curve[-1].cumulative == pytest.approx({"portfolio": -0.01, BENCH: 0.0, "QQQ.US": 0.10})
+    assert rep.curve[-1].drawdown["portfolio"] == pytest.approx(-0.10)
+    assert [round(d.depth, 6) for d in rep.drawdowns] == [-0.10]
+    assert sum(b.count for b in rep.histogram_daily) == 3
+
+
+def test_the_report_before_the_first_fill_is_empty() -> None:
+    rep = report(build([], closes(BENCH, [10]), [BENCH]), [BENCH])
+    assert (rep.start, rep.end, rep.trading_days, rep.benchmarks) == (None, None, 0, [BENCH])
+    assert [len(x) for x in (rep.series, rep.curve, rep.drawdowns, rep.histogram_monthly, rep.histogram_daily)] == [0] * 5
+
+
+def test_a_benchmark_cannot_take_the_portfolio_s_name() -> None:
+    with pytest.raises(ValueError, match="cannot be a benchmark"):
+        report(build([], closes("portfolio", [10]), ["portfolio"]), ["portfolio"])

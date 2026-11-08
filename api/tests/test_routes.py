@@ -2,13 +2,15 @@
 
 import re
 from collections.abc import Iterator
-from dataclasses import replace
+from dataclasses import fields, replace
 from itertools import pairwise
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
+from turtleweb import analytics, models
 from turtleweb.main import create_app
 from turtleweb.routes import SYMBOLS_TTL_SECONDS
 from turtleweb.settings import Settings
@@ -23,9 +25,17 @@ def client(demo_engine: sa.Engine, demo_settings: Settings) -> Iterator[TestClie
         yield c
 
 
-def test_openapi_lists_all_six_routes(client: TestClient) -> None:
+def test_openapi_lists_all_seven_routes(client: TestClient) -> None:
     paths = set(client.get("/openapi.json").json()["paths"])
-    assert paths == {"/api/healthz", "/api/portfolio", "/api/transactions", "/api/symbols", "/api/chart/{symbol}", "/api/signals"}
+    assert paths == {
+        "/api/healthz",
+        "/api/portfolio",
+        "/api/analytics",
+        "/api/transactions",
+        "/api/symbols",
+        "/api/chart/{symbol}",
+        "/api/signals",
+    }
 
 
 def test_positions_carry_the_company_sector(client: TestClient) -> None:
@@ -71,6 +81,60 @@ def test_history_carries_every_benchmark_in_the_configured_order(client: TestCli
     history = body["history"]
     assert all(sorted(h["benchmark_pnl"]) == ["BENCH.US", "BENCHQ.US"] for h in history)
     assert history[-1]["benchmark_pnl"]["BENCH.US"] != history[-1]["benchmark_pnl"]["BENCHQ.US"]
+
+
+def test_analytics_series_are_the_portfolio_then_the_benchmarks_in_order(client: TestClient) -> None:
+    body = client.get("/api/analytics").json()
+    assert body["benchmarks"] == ["BENCH.US", "BENCHQ.US"]
+    assert [s["symbol"] for s in body["series"]] == ["portfolio", "BENCH.US", "BENCHQ.US"]
+    portfolio, *benchmarks = (s["metrics"] for s in body["series"])
+    assert portfolio["beta"] is not None
+    assert all(b["beta"] is None and b["correlation"] is None for b in benchmarks)  # the portfolio's only
+
+
+def test_analytics_curve_has_one_point_per_series_day(client: TestClient) -> None:
+    body = client.get("/api/analytics").json()
+    curve = body["curve"]
+    assert len(curve) == body["trading_days"]
+    assert (curve[0]["date"], curve[-1]["date"]) == (body["start"], body["end"])
+    assert all(sorted(p["cumulative"]) == sorted(p["drawdown"]) == ["BENCH.US", "BENCHQ.US", "portfolio"] for p in curve)
+    portfolio = body["series"][0]
+    assert curve[-1]["cumulative"]["portfolio"] == pytest.approx(portfolio["metrics"]["cumulative_return"])
+    assert sum(b["count"] for b in body["histogram_daily"]) == body["trading_days"]
+    assert sum(b["count"] for b in body["histogram_monthly"]) == len(portfolio["monthly"])
+    assert 0 < len(body["drawdowns"]) <= 5
+    assert body["drawdowns"][0]["depth"] == pytest.approx(portfolio["metrics"]["max_drawdown"])
+
+
+def test_analytics_cumulative_curve_has_no_jump_at_the_split(client: TestClient) -> None:
+    # a mishandled 2:1 split would drop the day's return by half the split position's value (~3.5%)
+    cumulative = [p["cumulative"]["portfolio"] for p in client.get("/api/analytics").json()["curve"]]
+    assert max(abs((1 + b) / (1 + a) - 1) for a, b in pairwise(cumulative)) < 0.03
+
+
+@pytest.mark.parametrize(
+    ("model", "record"),
+    [
+        (models.Analytics, analytics.Report),
+        (models.SeriesAnalytics, analytics.SeriesAnalytics),
+        (models.CurvePoint, analytics.CurvePoint),
+        (models.Metrics, analytics.Metrics),
+        (models.PeriodReturn, analytics.PeriodReturn),
+        (models.DrawdownPeriod, analytics.DrawdownPeriod),
+        (models.Bin, analytics.Bin),
+    ],
+)
+def test_analytics_models_mirror_their_dataclasses(model: type[BaseModel], record: type) -> None:
+    # model_validate(from_attributes=True) silently drops a dataclass field the model lacks
+    assert list(model.model_fields) == [f.name for f in fields(record)]
+
+
+def test_analytics_without_transactions_is_empty(demo_engine: sa.Engine, demo_settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("turtleweb.routes._transactions", lambda request: [])
+    with TestClient(create_app(demo_settings)) as c:
+        body = c.get("/api/analytics").json()
+    assert (body["start"], body["end"], body["trading_days"], body["benchmarks"]) == (None, None, 0, ["BENCH.US", "BENCHQ.US"])
+    assert all(body[k] == [] for k in ("series", "curve", "drawdowns", "histogram_monthly", "histogram_daily"))
 
 
 def test_transactions_have_slippage_only_for_linked_buys(client: TestClient) -> None:
@@ -154,9 +218,10 @@ def test_signals_reject_out_of_range_parameters(client: TestClient, params: dict
 def test_ledger_error_is_a_500_naming_the_ticker(demo_engine: sa.Engine, demo_settings: Settings) -> None:
     settings = demo_settings.model_copy(update={"benchmark_symbols": ["BENCH.US", "MISSING.US"]})
     with TestClient(create_app(settings), raise_server_exceptions=False) as c:
-        response = c.get("/api/portfolio")
-    assert response.status_code == 500
-    assert "MISSING.US" in response.json()["detail"]
+        responses = [c.get("/api/portfolio"), c.get("/api/analytics")]
+    for response in responses:
+        assert response.status_code == 500
+        assert "MISSING.US" in response.json()["detail"]
 
 
 def test_chart_survives_a_ledger_error_without_its_cost_line(demo_engine: sa.Engine, demo_settings: Settings) -> None:

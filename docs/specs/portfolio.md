@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Steps 1–4 are done. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Steps 1–5 are done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -299,6 +299,11 @@ page by hand: while there has been only one buy, cumulative return equals total 
 cost basis.
 
 ### Step 5 — Endpoint and response models
+
+**Done.** Implemented in `turtle-web` 2026-11-08. `analytics.report(ledger, benchmarks)` builds
+the whole response as dataclasses, so the empty case and the portfolio-only beta are unit-tested
+without the database; the route converts it to the `models.py` mirrors in one
+`model_validate`. The portfolio's series key is `"portfolio"`.
 
 `GET /api/analytics` in `routes.py`. It reuses `_transactions` and `_ledger`, so it costs the
 same two queries as `/api/portfolio` and adds no SQL. A `LedgerError` returns 500, as it does

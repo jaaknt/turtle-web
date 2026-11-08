@@ -22,6 +22,10 @@ PERIODS = 252
 # A drawdown shallower than this is float noise: a recovery to the exact old peak can compute as
 # peak * (1 - 2e-16), which would otherwise keep the drawdown open. quantstats compares with 0.
 _DD_NOISE = 1e-12
+PORTFOLIO = "portfolio"  # the portfolio's key among the report's series, beside benchmark symbols
+WORST_DRAWDOWNS = 5
+MONTHLY_BIN = 0.02  # histogram widths, with an edge at 0
+DAILY_BIN = 0.005
 
 
 @dataclass(frozen=True)
@@ -231,4 +235,71 @@ def metrics(r: Returns, benchmark: Returns | None = None) -> Metrics:
         win_rate_months=_win_rate(months),
         beta=beta,
         correlation=correlation,
+    )
+
+
+@dataclass(frozen=True)
+class SeriesAnalytics:
+    """One series' metrics and period returns."""
+
+    symbol: str  # PORTFOLIO, or a benchmark symbol
+    metrics: Metrics
+    monthly: list[PeriodReturn]
+    yearly: list[PeriodReturn]
+
+
+@dataclass(frozen=True)
+class CurvePoint:
+    """Every series' cumulative return and drawdown at the end of one day."""
+
+    date: date
+    cumulative: dict[str, float]  # by series symbol
+    drawdown: dict[str, float]
+
+
+@dataclass(frozen=True)
+class Report:
+    """Everything the analytics page shows; empty, with start None, before the first fill."""
+
+    start: date | None
+    end: date | None
+    trading_days: int
+    benchmarks: list[str]
+    series: list[SeriesAnalytics]  # the portfolio first, then each benchmark in order
+    curve: list[CurvePoint]
+    drawdowns: list[DrawdownPeriod]  # the portfolio's WORST_DRAWDOWNS deepest
+    histogram_monthly: list[Bin]  # the portfolio's
+    histogram_daily: list[Bin]
+
+
+def _series(symbol: str, r: Returns, benchmark: Returns | None = None) -> SeriesAnalytics:
+    return SeriesAnalytics(symbol, metrics(r, benchmark), monthly(r), yearly(r))
+
+
+def report(ledger: Ledger, benchmarks: list[str]) -> Report:
+    """The portfolio against each benchmark held; beta and correlation are the portfolio's, vs the first."""
+    if PORTFOLIO in benchmarks:  # it would overwrite the portfolio's curve
+        raise ValueError(f"{PORTFOLIO!r} names the portfolio's series; it cannot be a benchmark")
+    portfolio = portfolio_returns(ledger)
+    if not portfolio.values:
+        return Report(None, None, 0, benchmarks, [], [], [], [], [])
+    held = {b: benchmark_returns(ledger, b) for b in benchmarks}
+    series = [_series(PORTFOLIO, portfolio, held[benchmarks[0]]), *(_series(b, r) for b, r in held.items())]
+    returns = {PORTFOLIO: portfolio, **held}
+    cumulatives = {name: cumulative(r) for name, r in returns.items()}
+    drawdowns = {name: underwater(r) for name, r in returns.items()}
+    curve = [
+        CurvePoint(d, {name: c[i] for name, c in cumulatives.items()}, {name: u[i] for name, u in drawdowns.items()})
+        for i, d in enumerate(portfolio.dates)
+    ]
+    return Report(
+        start=portfolio.dates[0],
+        end=portfolio.dates[-1],
+        trading_days=len(portfolio.values),
+        benchmarks=benchmarks,
+        series=series,
+        curve=curve,
+        drawdowns=drawdown_periods(portfolio)[:WORST_DRAWDOWNS],
+        histogram_monthly=histogram([m.value for m in series[0].monthly], MONTHLY_BIN),
+        histogram_daily=histogram(portfolio.values, DAILY_BIN),
     )

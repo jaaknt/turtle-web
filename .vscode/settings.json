@@ -1,0 +1,22 @@
+{
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "[markdown]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.markdownlint": "explicit"
+    }
+  },
+  // The Python project lives in api/: mypy needs its config (strict, pydantic plugin) and its venv,
+  // where the plugin is importable. Run from api/ so `files` and imports resolve as on the CLI.
+  "mypy-type-checker.args": ["--config-file", "${workspaceFolder}/api/pyproject.toml"],
+  "mypy-type-checker.cwd": "${workspaceFolder}/api",
+  "mypy-type-checker.interpreter": ["${workspaceFolder}/api/.venv/bin/python"],
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "python.defaultInterpreterPath": "${workspaceFolder}/api/.venv/bin/python"
+}

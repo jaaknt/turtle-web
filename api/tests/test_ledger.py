@@ -269,6 +269,21 @@ def test_a_stale_symbol_has_no_day_change() -> None:
     assert position.day_change_pct == 0
 
 
+def test_a_fill_after_the_last_benchmark_bar_does_not_zero_the_day_change() -> None:
+    # day 2 is in the calendar only for its fill (imported before that day's bars): Day % stays day 1's
+    fills = [buy(0, "A", 10, 100), buy(2, "A", 5, 110)]
+    ledger = build(fills, closes("A", [100, 110]) + closes(BENCH, [10, 10]), [BENCH])
+    assert ledger.history[-1].date == day(2)
+    assert ledger.positions[0].day_change_pct == pytest.approx(0.10)
+
+
+def test_a_position_bought_on_the_last_day_shows_the_stocks_move() -> None:
+    # a price move, not the holding's: B was not held on day 0, yet its Day % is its close-to-close move
+    fills = [buy(0, "A", 10, 100), buy(1, "B", 10, 95)]
+    ledger = build(fills, closes("A", [100, 100]) + closes("B", [90, 99]) + closes(BENCH, [10, 10]), [BENCH])
+    assert {p.symbol: p.day_change_pct for p in ledger.positions} == pytest.approx({"A": 0.0, "B": 0.10})
+
+
 def test_day_change_matches_the_last_two_history_points_across_a_gap() -> None:
     # A has no bar on day 2: day 3's change spans days 1 to 3, exactly as the portfolio value moved
     a = closes("A", [100, 110]) + closes("A", [121], start=3)

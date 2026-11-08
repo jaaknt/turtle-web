@@ -762,7 +762,7 @@ class Position(BaseModel):
     avg_cost: float  # cost basis / shares, fees included
     last_close: float  # raw, comparable with fill prices
     last_date: date  # staleness is visible
-    day_change_pct: float | None  # since the previous ledger day; see ledger.OpenPosition
+    day_change_pct: float | None  # the stock's move on the latest trading day; see ledger.OpenPosition
     market_value: float
     cost_basis: float
     unrealized: float

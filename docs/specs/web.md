@@ -1190,7 +1190,8 @@ mkdir -p ~/.config/turtle-web
 chmod 600 ~/.config/turtle-web/secrets.env
 loginctl enable-linger "$USER"   # user services start at boot, without an SSH login
 systemctl --user enable ~/turtle-web/deploy/turtle-web.service   # links the unit; does not start it
-~/turtle-web/deploy/deploy.sh v0.2.0   # first deploy: sync, web/dist, start
+# first deploy, of the latest release tag: sync, web/dist, start
+~/turtle-web/deploy/deploy.sh "$(git -C ~/turtle-web tag --list 'v*' --sort=-v:refname | head -n 1)"
 ```
 
 `~/.config/turtle-web/secrets.env`:

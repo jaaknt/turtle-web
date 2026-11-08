@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy a tagged release on the VPS:  ~/turtle-web/deploy/deploy.sh v0.2.0
+# Deploy a tagged release on the VPS:  ~/turtle-web/deploy/deploy.sh <tag>, such as v0.3.4
 #
 # One-time setup comes first (docs/specs/web.md, Step 11). What a deploy does:
 #

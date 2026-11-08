@@ -3,6 +3,7 @@
   --muted: #656d76;
   --bg: #ffffff;
   --border: #d0d7de;
+  --grid: #eef1f4;
   --accent: #0969da;
   --pos: #1a7f37;
   --neg: #cf222e;
@@ -19,6 +20,7 @@
     --muted: #8d96a0;
     --bg: #0d1117;
     --border: #30363d;
+    --grid: #1c2128;
     --accent: #4493f8;
     --pos: #3fb950;
     --neg: #f85149;
@@ -69,5 +71,9 @@ main {
 }
 
 .neg {
+  color: var(--neg);
+}
+
+.error {
   color: var(--neg);
 }

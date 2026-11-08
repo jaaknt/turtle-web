@@ -845,7 +845,8 @@ out-of-range signal parameters are a 422; a ledger error is a 500 naming the tic
 
 ```bash
 cd web
-npm install vue-router lightweight-charts primevue @primeuix/themes
+npm install vue-router lightweight-charts
+npm install --save-exact primevue@4.5.5 @primeuix/themes@2.0.3
 npm install -D openapi-typescript
 ```
 
@@ -857,7 +858,13 @@ would not inherit):
 "overrides": { "openapi-typescript": { "typescript": "$typescript" } }
 ```
 
-Pin exact versions in `package-lock.json` and let Dependabot move them. Lightweight Charts
+Pin exact versions in `package-lock.json` and let Dependabot move them.
+
+**PrimeVue stays on 4.x.** PrimeVue 5 (with `@primeuix/themes` 3) is no longer MIT: it is a
+commercial "PrimeUI" product that needs a licence key and shows an "Invalid PrimeUI License"
+badge on every page without one. The free Community key needs yearly renewal and would sit in
+this public repo. 4.5.5 / 2.0.3 are the last MIT releases, so they are pinned exactly, and
+`.github/dependabot.yml` ignores all updates to both (a later 4.x could ship under the new licence too). Lightweight Charts
 must be **v5**: the code below uses the v5 `addSeries(SeriesType, options, paneIndex)` and
 `createSeriesMarkers` API, which v4 lacks.
 
@@ -937,7 +944,10 @@ passes.
 
 ### Step 8 — The price chart component
 
-`src/components/PriceChart.vue` is the only place the chart library is touched.
+Lightweight Charts is touched only in `src/components/` (`PriceChart.vue`, `LineChart.vue`) and
+`src/charts.ts`, which holds the shared lifecycle (`useChart`: create on mount, remove on unmount)
+and the light/dark theme read from the page's CSS variables. The block below is the core of
+`PriceChart.vue`; the shipped file differs as listed after it.
 
 ```vue
 <script setup lang="ts">
@@ -995,14 +1005,29 @@ onBeforeUnmount(() => chart?.remove()) // frees the canvas and ResizeObserver
 </style>
 ```
 
-`src/components/LineChart.vue` follows the same lifecycle. It takes
+What the shipped `PriceChart.vue` adds to the block above:
+
+- **`useChart` replaces the hand-written mount/unmount**, and themes the chart: background, text,
+  grid, borders and the pane separator follow `prefers-color-scheme`, live. The avg-cost line
+  takes `--muted` and is redrawn on a scheme change.
+- **Fills are filtered to the bars' date range.** `/chart` returns every fill but only
+  `CHART_YEARS` of bars, and the library snaps an out-of-range marker onto the nearest candle,
+  which would draw an old buy on the wrong day.
+- **On adjusted candles, marker labels drop the price** (`B 5`, not `B 5@186.7`): fill prices are
+  raw and would contradict the adjusted scale.
+- **Volume:** the pane gets a fifth of the height (`setStretchFactor(0.25)`; the default split is
+  50/50), and each bar takes its candle's up/down colour. Quantities and prices in labels go
+  through `num()`.
+
+`src/components/LineChart.vue` uses the same `useChart` lifecycle. It takes
 `series: { name, color, points: { time, value }[] }[]` and draws one `LineSeries` per entry. Use
 `LineSeries` rather than `AreaSeries`: with a few dozen points, an area fill reads as a
 placeholder.
 
 **Verify:** on the demo data, `DEMOC.US` raw shows the split cliff, and `?adjusted=true`
 removes it. Buy arrows sit under their fill-date candles, and the dashed average-cost line
-matches the buy price. Switching symbols leaves exactly one chart on the page (check the DOM for
+matches the buy price (on `DEMOC.US`, whose split comes after the buy, it sits at about half
+of it: 93.45 against a 186.70 buy, since the ledger rescales held shares). Switching symbols leaves exactly one chart on the page (check the DOM for
 a single `<canvas>` set).
 
 ### Step 9 — The four pages

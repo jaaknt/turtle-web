@@ -4,6 +4,12 @@ updates:
     directory: /web
     schedule:
       interval: weekly
+    ignore:
+      # PrimeVue 5 / @primeuix/themes 3 left MIT for a key-gated commercial licence;
+      # stay pinned to the last MIT releases, 4.5.5 / 2.0.3 (see docs/specs/web.md, Step 7).
+      # Any update, not just majors: a later 4.x or 2.x could ship under the new licence too.
+      - dependency-name: primevue
+      - dependency-name: "@primeuix/themes"
   - package-ecosystem: github-actions
     directory: /
     schedule:

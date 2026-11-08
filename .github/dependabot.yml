@@ -1,9 +1,18 @@
 version: 2
+
+# Every ecosystem: a release is proposed only once it is 7 days old, so a hijacked version is
+# usually caught and yanked before it reaches a PR; and minor and patch updates arrive as one
+# grouped PR, while each major gets its own PR (and its own CI failure).
 updates:
   - package-ecosystem: npm
     directory: /web
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
     ignore:
       # PrimeVue 5 / @primeuix/themes 3 left MIT for a key-gated commercial licence;
       # stay pinned to the last MIT releases, 4.5.5 / 2.0.3 (see docs/specs/web.md, Step 7).
@@ -14,11 +23,25 @@ updates:
       # (ERR_PACKAGE_PATH_NOT_EXPORTED), so type-check and build fail. Lift once vue-tsc supports it.
       - dependency-name: typescript
         versions: [">= 7"]
+      # The types follow the Node major in web/.nvmrc (what CI and the release build run);
+      # move both together, by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
   - package-ecosystem: uv
     directory: /api
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      uv-minor-patch:
+        update-types: [minor, patch]

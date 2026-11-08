@@ -1149,7 +1149,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+        with: { node-version-file: web/.nvmrc, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - run: npm run gen:api && git diff --exit-code -- openapi.json src/api/schema.d.ts
       - run: npm run type-check && npm run build
@@ -1170,6 +1170,13 @@ The shipped workflows differ from the sketch above in these ways:
   re-resolving on the runner. Re-run `uv lock --script` after editing the script's `dependencies`;
   Dependabot does not track that lock.
 - `psql` runs with `-v ON_ERROR_STOP=1`, so a broken `schema.sql` fails the step.
+- **Node comes from `web/.nvmrc`** (24, the active LTS) in both workflows, so CI, the release
+  build and a local `nvm use` agree. `@types/node` stays on the same major: Dependabot ignores
+  its major bumps, and the two move together by hand.
+- **Every job has a `timeout-minutes`** (15, or 5 for the short ones) instead of GitHub's 6 hours.
+- **Dependabot** (`.github/dependabot.yml`) covers npm, uv and GitHub Actions weekly, with a
+  7-day cooldown (a release must be a week old before it is proposed) and one grouped PR per
+  ecosystem for minor and patch updates; majors arrive one per PR.
 - `ci.yml` runs on pushes to `main` and on pull requests, with `contents: read` and in-progress PR
   runs cancelled by newer pushes.
 - **A `docs` job lints markdown** with `markdownlint-cli2-action` (v25.0.0, which runs

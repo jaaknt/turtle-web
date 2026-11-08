@@ -14,6 +14,7 @@ permissions:
 jobs:
   on-main:
     runs-on: ubuntu-latest
+    timeout-minutes: 5 # GitHub's default is 6 hours; a hung step should fail fast
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0 }
@@ -31,6 +32,7 @@ jobs:
   web-dist:
     needs: ci
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write # create the release and upload its asset
     steps:
@@ -38,7 +40,7 @@ jobs:
       # No `cache: npm`: this job holds a write token, so it never restores a cache that a
       # less-trusted run could have saved. npm ci installs from package-lock.json.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: 22 }
+        with: { node-version-file: web/.nvmrc }
       - name: Build
         working-directory: web
         env:

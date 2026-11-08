@@ -24,6 +24,11 @@ const pctShortFmt = new Intl.NumberFormat('en-US', {
   signDisplay: 'exceptZero',
 })
 
+// Unsigned shares (a win rate, a volatility): +51% would read as a change.
+const shareFmt = new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+const ratioFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 const numFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 
 export function money(v: number | null | undefined): string {
@@ -36,6 +41,25 @@ export function pct(v: number | null | undefined): string {
 
 export function pctShort(v: number | null | undefined): string {
   return v == null ? DASH : pctShortFmt.format(v)
+}
+
+export function share(v: number | null | undefined): string {
+  return v == null ? DASH : shareFmt.format(v)
+}
+
+/** Two decimals, for Sharpe, beta and the like. */
+export function ratio(v: number | null | undefined): string {
+  return v == null ? DASH : ratioFmt.format(v)
+}
+
+/** A count of calendar days: '128 d'. */
+export function days(v: number | null | undefined): string {
+  return v == null ? DASH : `${v} d`
+}
+
+/** 'SPY' from 'SPY.US': the exchange suffix is noise in labels. */
+export function ticker(symbol: string): string {
+  return symbol.replace(/\.US$/, '')
 }
 
 export function num(v: number | null | undefined): string {

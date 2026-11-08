@@ -9,6 +9,14 @@ export function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
+// Line colours shared by every page: the portfolio's, then one per benchmark in configured order.
+export const PORTFOLIO_COLOR = '#26a69a'
+const BENCHMARK_COLORS = ['#f59e0b', '#a855f7', '#ef4444', '#64748b']
+
+export function benchmarkColor(index: number): string {
+  return BENCHMARK_COLORS[index % BENCHMARK_COLORS.length]!
+}
+
 export function chartTheme(): DeepPartial<ChartOptions> {
   return {
     layout: {

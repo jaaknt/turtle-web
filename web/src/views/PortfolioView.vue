@@ -6,7 +6,8 @@ import { api } from '../api/client'
 import KpiTile from '../components/KpiTile.vue'
 import LineChart, { type LineSeriesSpec } from '../components/LineChart.vue'
 import PnlCaveats from '../components/PnlCaveats.vue'
-import { money, num, pct, pnlClass } from '../format'
+import { benchmarkColor, PORTFOLIO_COLOR } from '../charts'
+import { money, num, pct, pnlClass, ticker } from '../format'
 import { useLoad } from '../useLoad'
 
 const { data: portfolio, error, loading } = useLoad(() => api.portfolio())
@@ -20,8 +21,6 @@ const unrealizedPct = computed(() =>
 // The configured order (SPY.US, QQQ.US), sent as its own list: object key order is not reliable
 // (JavaScript moves integer-like keys first).
 const benchmarks = computed(() => portfolio.value?.benchmarks ?? [])
-const BENCHMARK_COLORS = ['#f59e0b', '#a855f7', '#ef4444', '#64748b']
-const ticker = (symbol: string) => symbol.replace(/\.US$/, '')
 const vsBenchmarks = computed(() => {
   const t = totals.value
   if (!t) return []
@@ -46,9 +45,9 @@ const valueSeries = computed(() => [
   line('Cost basis', '#9ca3af', (h) => h.cost_basis),
 ])
 const pnlSeries = computed(() => [
-  line('Total P&L', '#26a69a', (h) => h.total_pnl),
+  line('Total P&L', PORTFOLIO_COLOR, (h) => h.total_pnl),
   ...benchmarks.value.map((b, i) =>
-    line(`${ticker(b)} P&L`, BENCHMARK_COLORS[i % BENCHMARK_COLORS.length]!, (h) => h.benchmark_pnl[b]!),
+    line(`${ticker(b)} P&L`, benchmarkColor(i), (h) => h.benchmark_pnl[b]!),
   ),
 ])
 </script>
@@ -150,17 +149,5 @@ const pnlSeries = computed(() => [
 /* One-line headers: the short labels above keep the table within 1366px even with long sector names. */
 .positions :deep(.p-datatable-thead > tr > th) {
   white-space: nowrap;
-}
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-.charts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
 }
 </style>

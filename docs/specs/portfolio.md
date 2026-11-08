@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Steps 1–6 are done. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Steps 1–7 are done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -96,6 +96,8 @@ the portfolio earns 0 while the benchmark keeps moving.
   unreliable. The page shows them, flagged, rather than hiding them.
 - Day one is measured differently: the portfolio from fill price to close, each benchmark not at
   all (bought at that close). Over a short history this one day can move the comparison.
+- Benchmarks are buy and hold from the first day's close, not the Portfolio page's shadow
+  benchmarks, which follow the cash flows.
 
 ## Metric definitions
 
@@ -384,6 +386,13 @@ under it: at most about eight, always 0 and both outer edges. With no bins it sh
 
 ### Step 7 — The page
 
+**Done.** Implemented in `turtle-web` 2026-11-09. The Period tile shows the trading days, with
+the dates as its sub line: the date range overflows a tile at 1366px. The monthly table takes the
+full width (thirteen columns do not fit beside a chart), and the histogram sits beside the worst
+drawdowns instead. The footer is `AnalyticsCaveats.vue`, with a fourth caveat: the benchmarks
+are buy and hold, not the Portfolio page's shadow benchmarks. `ticker`, the series colours and
+the `.kpis`, `.charts` and `.toggle` styles are now shared with the Portfolio and Chart pages.
+
 `AnalyticsView.vue`, one `api.analytics()` call through `useLoad`, as on the Portfolio page:
 
 - **KPI row** (`KpiTile`): cumulative return, CAGR, Sharpe, max drawdown, each with the first
@@ -396,7 +405,7 @@ under it: at most about eight, always 0 and both outer edges. With no bins it sh
   the Portfolio page's pair, with the same benchmark colours.
 - **Monthly returns**: `MonthlyReturns`, the portfolio's. A selector switches to a benchmark's.
 - **Distribution of returns**: `BarChart` with a Monthly / Daily toggle. It defaults to daily
-  while there are fewer than 12 months, because a handful of monthly bars says little.
+  while there are fewer than 12 full months (partial ones do not count), because a handful of monthly bars says little.
 - **Worst drawdowns**: a `DataTable` over `drawdowns`; "ongoing" when `ongoing` is set.
 - **Footer**: the [return model's caveats](#the-return-model), in a component next to
   `PnlCaveats.vue`, kept in step with this document as that one is with web.md.

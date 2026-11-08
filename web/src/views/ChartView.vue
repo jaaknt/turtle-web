@@ -76,13 +76,7 @@ const title = computed(() => {
 .controls input {
   width: 16rem;
 }
-.toggle {
+.controls .toggle {
   margin-left: 1rem;
-  display: inline-flex;
-}
-.toggle button[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
 }
 </style>

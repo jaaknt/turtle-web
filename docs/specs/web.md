@@ -1172,6 +1172,12 @@ The shipped workflows differ from the sketch above in these ways:
 - `psql` runs with `-v ON_ERROR_STOP=1`, so a broken `schema.sql` fails the step.
 - `ci.yml` runs on pushes to `main` and on pull requests, with `contents: read` and in-progress PR
   runs cancelled by newer pushes.
+- **A `docs` job lints markdown** with `markdownlint-cli2-action` (v25.0.0, which runs
+  markdownlint-cli2 0.24.0), over `README.md`, `web/README.md` and `docs/**/*.md`. Files and
+  rules live in `.markdownlint-cli2.jsonc`, the same rules as turtle-backtest: no line-length
+  limit (MD013), inline HTML allowed (MD033), no first-line heading required (MD041), no table
+  alignment checks (MD060), and duplicate headings allowed under different parents (MD024). Run
+  it locally with `npx markdownlint-cli2@0.24.0` (`--fix` fixes what it can).
 - The `web` job runs `npm run build` only: it starts with `vue-tsc -b`, so a separate
   `type-check` step would check everything twice.
 - **The nav bar shows the version.** `release.yml` builds with `APP_VERSION` set to the tag;

@@ -1,0 +1,17 @@
+{
+  // Same rules as turtle-backtest. CI runs this through markdownlint-cli2-action; locally:
+  // `npx markdownlint-cli2@0.24.0` from the repo root (`--fix` fixes what it can).
+  "globs": ["README.md", "web/README.md", "docs/**/*.md"],
+  "config": {
+    // Line length — prose docs shouldn't hard-wrap
+    "MD013": false,
+    // Allow inline HTML (badges, <br> in tables)
+    "MD033": false,
+    // First line need not be a top-level heading
+    "MD041": false,
+    // Table pipe spacing/alignment — pure cosmetics, not auto-fixable
+    "MD060": false,
+    // Duplicate headings allowed under different parent sections
+    "MD024": { "siblings_only": true }
+  }
+}

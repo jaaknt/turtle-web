@@ -72,3 +72,12 @@ jobs:
         # A response-model change without a re-run of `npm run gen:api` fails here.
         run: npm run gen:api && git diff --exit-code -- openapi.json src/api/schema.d.ts
       - run: npm run build # starts with vue-tsc -b, the same check as `npm run type-check`
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint markdown
+        # Files and rules come from .markdownlint-cli2.jsonc (the same rules as turtle-backtest).
+        # Locally: npx markdownlint-cli2@0.24.0, the version this action release runs.
+        uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0

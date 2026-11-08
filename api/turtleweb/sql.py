@@ -31,21 +31,15 @@ WHERE symbol = ANY(:symbols) AND date >= :start AND close > 0 AND adjusted_close
 ORDER BY date, symbol
 """)
 
-# One symbol's chart
+# One symbol's chart. Every price must be positive: a NULL open/high/low would break the candle,
+# and a 0 adjusted_close would put a raw price into an adjusted series.
 BARS = sa.text("""
 SELECT date, open::float8 AS open, high::float8 AS high, low::float8 AS low, close::float8 AS close,
        adjusted_close::float8 AS adjusted_close, volume
 FROM turtle.daily_bars
-WHERE symbol = :symbol AND date >= :start AND close > 0
+WHERE symbol = :symbol AND date >= :start
+  AND open > 0 AND high > 0 AND low > 0 AND close > 0 AND adjusted_close > 0
 ORDER BY date
-""")
-
-# One symbol's transactions, for chart markers
-FILLS = sa.text("""
-SELECT transacted_at::date AS date, transaction_type AS side, quantity::float8 AS quantity, price::float8 AS price
-FROM turtle.lightyear_transaction
-WHERE ticker_code = :symbol
-ORDER BY transacted_at
 """)
 
 # The signals page. The indicators are read from parameters, frozen as of the signal date, never
@@ -61,7 +55,7 @@ SELECT s.id, s.symbol, t.name, s.signal_date, s.ranking,
        (s.parameters->>'adr_pct')::float8      AS adr_pct,
        e.entry_date, e.entry_price,                                  -- RAW open: recognisable
        last.close AS curr_price, last.date AS curr_date,             -- RAW close; staleness visible
-       100.0 * (last.adj_close / e.entry_adj - 1.0) AS change_pct,   -- ADJUSTED: split-safe total return
+       last.adj_close / e.entry_adj - 1.0 AS change_pct,             -- ADJUSTED: split-safe total return, a fraction
        EXISTS (SELECT 1 FROM turtle.lightyear_transaction lt WHERE lt.signal_id = s.id) AS bought
 FROM turtle.signal s
 LEFT JOIN turtle.ticker t ON t.code = s.symbol
@@ -89,7 +83,7 @@ ORDER BY s.signal_date DESC, s.ranking DESC
 
 # Every symbol with bars, for the chart page's search. SELECT DISTINCT would read the whole table;
 # this loose index scan does one `min(symbol) WHERE symbol > ?` index probe per symbol instead
-# (PostgreSQL 17 has no native skip scan). Loaded on the first /api/symbols request and cached.
+# (PostgreSQL 17 has no native skip scan). Loaded on first use and cached for an hour.
 SYMBOLS = sa.text("""
 WITH RECURSIVE syms AS (
     (SELECT min(symbol) AS symbol FROM turtle.daily_bars)

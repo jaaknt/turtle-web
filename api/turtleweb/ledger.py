@@ -26,6 +26,10 @@ _SPLIT_THRESHOLD = 0.25  # a day-over-day change in f beyond this is a split, no
 _SPLIT_MAX_DENOMINATOR = 4  # "N for M" with M <= 4: 2, 3/2, 4/3, and reverse 1/10, 1/20, 1/50
 
 
+class LedgerError(ValueError):
+    """The fills and closes cannot be replayed: the message names the symbol and date."""
+
+
 @dataclass(frozen=True)
 class Fill:
     """One transaction."""
@@ -114,7 +118,7 @@ def build(fills: list[Fill], closes: list[Close], benchmark: str) -> Ledger:
         Ledger: Open positions as of the last day, totals, and one history point per day.
 
     Raises:
-        ValueError: A fill's symbol or the benchmark has no close by the day the fill is applied,
+        LedgerError: A fill's symbol or the benchmark has no close by the day the fill is applied,
             or a sell exceeds the shares held. A ledger that silently drops a position is worse
             than a loud error naming the ticker.
     """
@@ -177,7 +181,7 @@ def _split_ratio(prev: Close, curr: Close) -> float:
 def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmark: str) -> None:
     for symbol in (fill.symbol, benchmark):
         if symbol not in last:
-            raise ValueError(f"no close for {symbol} on or before {fill.date} (fill of {fill.symbol})")
+            raise LedgerError(f"no close for {symbol} on or before {fill.date} (fill of {fill.symbol})")
     c = last[fill.symbol]
     f = c.adjusted_close / c.close
     b = last[benchmark].adjusted_close
@@ -192,7 +196,7 @@ def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmark: str) -> 
             p.first_buy = fill.date
     elif fill.side == "sell":
         if fill.quantity > p.shares + _EPSILON:
-            raise ValueError(f"sell of {fill.quantity} {fill.symbol} on {fill.date} exceeds the {p.shares} held")
+            raise LedgerError(f"sell of {fill.quantity} {fill.symbol} on {fill.date} exceeds the {p.shares} held")
         frac = fill.quantity / p.shares
         cost_out = p.cost * frac
         p.realized += (fill.quantity * fill.price - fill.fee - fill.tax) - cost_out
@@ -205,7 +209,7 @@ def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmark: str) -> 
         if p.shares <= _EPSILON:
             p.first_buy = None  # a later buy opens a new holding period
     else:
-        raise ValueError(f"unknown side {fill.side!r} for {fill.symbol} on {fill.date}")
+        raise LedgerError(f"unknown side {fill.side!r} for {fill.symbol} on {fill.date}")
 
 
 def _point(day: date, book: dict[str, _Position], last: dict[str, Close], benchmark: str) -> Point:

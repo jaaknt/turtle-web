@@ -26,7 +26,6 @@ def _params(settings: Settings) -> dict[str, dict[str, Any]]:
         "TRANSACTIONS": {},
         "CLOSES": {"symbols": ["DEMOA.US", settings.benchmark_symbol], "start": START},
         "BARS": {"symbol": "DEMOC.US", "start": START},
-        "FILLS": {"symbol": "DEMOA.US"},
         "SIGNALS": {
             "strategy": settings.signal_strategy,
             "ranking_strategy": settings.signal_ranking_strategy,
@@ -55,11 +54,11 @@ def _explain(engine: sa.Engine, name: str, params: dict[str, Any]) -> dict[str, 
     return plan
 
 
-@pytest.mark.parametrize("name", ["TRANSACTIONS", "CLOSES", "BARS", "FILLS", "SIGNALS", "SYMBOLS"])
+@pytest.mark.parametrize("name", ["TRANSACTIONS", "CLOSES", "BARS", "SIGNALS", "SYMBOLS"])
 def test_daily_bars_is_read_through_its_primary_key(name: str, demo_engine: sa.Engine, demo_settings: Settings) -> None:
     plan = _explain(demo_engine, name, _params(demo_settings)[name])
     scans = _daily_bars_scans(plan)
-    assert bool(scans) == (name not in ("TRANSACTIONS", "FILLS")), "a statement gained or lost its daily_bars access"
+    assert bool(scans) == (name != "TRANSACTIONS"), "a statement gained or lost its daily_bars access"
     for scan in scans:
         assert scan["Node Type"] in ("Index Scan", "Index Only Scan"), scan["Node Type"]
         assert scan["Index Name"] == "pk_daily_bars"

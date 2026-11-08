@@ -3,13 +3,16 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
 
 from turtleweb.db import make_engine
+from turtleweb.ledger import LedgerError
 from turtleweb.routes import router
 from turtleweb.settings import Settings
 
@@ -32,6 +35,14 @@ class SpaStaticFiles(StaticFiles):
             return await super().get_response("index.html", scope)
 
 
+async def _ledger_error(request: Request, exc: Exception) -> JSONResponse:
+    """A loud 500 naming the ticker whose bars are missing, rather than a bare Internal Server Error.
+
+    Only LedgerError is surfaced: its message holds a symbol and a date, nothing internal.
+    """
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the FastAPI app.
 
@@ -50,11 +61,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = make_engine(settings)
         app.state.engine = engine
         app.state.settings = settings
-        app.state.symbols = None  # loaded on first /api/symbols request, see Step 4
+        app.state.symbols = None  # a routes.SymbolCache, loaded on first use
         yield
         engine.dispose()
 
     app = FastAPI(title="turtle-web", lifespan=lifespan)
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    app.add_exception_handler(LedgerError, _ledger_error)
     app.include_router(router, prefix="/api")
     if settings.static_dir:
         app.mount("/", SpaStaticFiles(directory=settings.static_dir, html=True), name="spa")  # last: it matches every path

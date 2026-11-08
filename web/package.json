@@ -6,17 +6,29 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gen:api": "(cd ../api && uv run python -c \"import json; from turtleweb.main import create_app; from turtleweb.settings import Settings; print(json.dumps(create_app(Settings(db_password='x')).openapi()))\") > openapi.json && openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "type-check": "vue-tsc -b --noEmit"
   },
   "dependencies": {
-    "vue": "^3.5.44"
+    "@primeuix/themes": "^3.1.0",
+    "lightweight-charts": "^5.2.1",
+    "primevue": "^5.0.4",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/tsconfig": "^0.9.1",
+    "openapi-typescript": "^7.13.0",
     "typescript": "~6.0.3",
     "vite": "^8.3.6",
     "vue-tsc": "^3.3.14"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

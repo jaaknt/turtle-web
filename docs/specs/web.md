@@ -849,6 +849,14 @@ npm install vue-router lightweight-charts primevue @primeuix/themes
 npm install -D openapi-typescript
 ```
 
+`openapi-typescript` 7.x declares a `typescript@^5` peer while the scaffold ships TypeScript 6, so
+`package.json` carries an override (rather than `--legacy-peer-deps`, which plain `npm ci` in CI
+would not inherit):
+
+```json
+"overrides": { "openapi-typescript": { "typescript": "$typescript" } }
+```
+
 Pin exact versions in `package-lock.json` and let Dependabot move them. Lightweight Charts
 must be **v5**: the code below uses the v5 `addSeries(SeriesType, options, paneIndex)` and
 `createSeriesMarkers` API, which v4 lacks.
@@ -880,10 +888,15 @@ export const router = createRouter({
 
 ```json
 "scripts": {
-  "gen:api": "cd ../api && uv run python -c \"import json; from turtleweb.main import create_app; from turtleweb.settings import Settings; print(json.dumps(create_app(Settings(db_password='x')).openapi()))\" > ../web/openapi.json && openapi-typescript ../web/openapi.json -o src/api/schema.d.ts",
-  "type-check": "vue-tsc --noEmit"
+  "gen:api": "(cd ../api && uv run python -c \"import json; from turtleweb.main import create_app; from turtleweb.settings import Settings; print(json.dumps(create_app(Settings(db_password='x')).openapi()))\") > openapi.json && openapi-typescript openapi.json -o src/api/schema.d.ts",
+  "type-check": "vue-tsc -b --noEmit"
 }
 ```
+
+The subshell matters: without it the `cd ../api` is still in effect when `openapi-typescript` runs,
+and `schema.d.ts` lands in `api/src/api/`. `-b` matters too: the root `tsconfig.json` is a
+solution file (`"files": []` plus references), so a plain `vue-tsc --noEmit` checks nothing and
+always passes.
 
 Commit `src/api/schema.d.ts` (and `openapi.json`). CI regenerates both and fails on a diff
 (Step 10), so a backend model change can never silently break the frontend.

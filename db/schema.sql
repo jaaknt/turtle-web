@@ -17,6 +17,9 @@ CREATE TABLE turtle.daily_bars (
 
 CREATE TABLE turtle.ticker (code TEXT PRIMARY KEY, name TEXT);
 
+-- EODHD fundamentals; not every ticker has a row, and sector can be NULL
+CREATE TABLE turtle.company (ticker_code TEXT PRIMARY KEY, sector TEXT);
+
 CREATE TABLE turtle.signal (
     id BIGINT PRIMARY KEY, trading_strategy TEXT NOT NULL, ranking_strategy TEXT NOT NULL,
     symbol TEXT NOT NULL, signal_date DATE NOT NULL, ranking SMALLINT, signal_close DOUBLE PRECISION,

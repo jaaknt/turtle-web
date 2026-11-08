@@ -26,6 +26,7 @@ class Position(BaseModel):
 
     symbol: str
     name: str | None
+    sector: str | None  # from turtle.company; None when EODHD has no fundamentals for it
     shares: float  # as the broker counts them: rescaled by any split while held
     avg_cost: float  # cost basis / shares, fees and tax included
     last_close: float  # raw, comparable with fill prices

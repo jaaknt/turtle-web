@@ -63,6 +63,9 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
         <template #body="{ data }"><RouterLink :to="`/chart/${data.symbol}`">{{ data.symbol }}</RouterLink></template>
       </Column>
       <Column field="name" header="Name" sortable />
+      <Column field="sector" header="Sector" sortable>
+        <template #body="{ data }">{{ data.sector ?? '—' }}</template>
+      </Column>
       <Column field="shares" header="Shares" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }">{{ num(data.shares) }}</template>
       </Column>

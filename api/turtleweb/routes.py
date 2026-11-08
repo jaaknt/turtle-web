@@ -106,6 +106,7 @@ def portfolio(request: Request) -> Portfolio:
     """
     transactions = _transactions(request)
     names = {t["symbol"]: t["name"] for t in transactions}
+    sectors = {t["symbol"]: t["sector"] for t in transactions}
     result = _ledger(request, transactions)
     if result.totals is None:
         return Portfolio(totals=None, positions=[], history=[])
@@ -114,6 +115,7 @@ def portfolio(request: Request) -> Portfolio:
         Position(
             symbol=p.symbol,
             name=names.get(p.symbol),
+            sector=sectors.get(p.symbol),
             shares=p.shares,
             avg_cost=p.cost / p.shares,
             last_close=p.last_close.close,

@@ -9,15 +9,16 @@ pk_daily_bars, the table's only index. tests/test_sql_plans.py holds them to tha
 
 import sqlalchemy as sa
 
-# Every fill, with the signal it was bought off
+# Every fill, with the signal it was bought off, and the company's name and sector
 TRANSACTIONS = sa.text("""
-SELECT t.reference, t.transacted_at, t.ticker_code AS symbol, tk.name, t.transaction_type AS side,
+SELECT t.reference, t.transacted_at, t.ticker_code AS symbol, tk.name, c.sector, t.transaction_type AS side,
        t.quantity::float8 AS quantity, t.price::float8 AS price, t.fee::float8 AS fee, t.tax::float8 AS tax,
        t.currency, t.signal_id, s.signal_date, s.ranking,
        (s.parameters->>'next_open')::float8 AS next_open
 FROM turtle.lightyear_transaction t
-LEFT JOIN turtle.ticker tk ON tk.code = t.ticker_code
-LEFT JOIN turtle.signal s  ON s.id = t.signal_id
+LEFT JOIN turtle.ticker tk  ON tk.code = t.ticker_code
+LEFT JOIN turtle.company c  ON c.ticker_code = t.ticker_code
+LEFT JOIN turtle.signal s   ON s.id = t.signal_id
 ORDER BY t.transacted_at
 """)
 

@@ -258,6 +258,8 @@ export interface components {
             symbol: string;
             /** Name */
             name: string | null;
+            /** Sector */
+            sector: string | null;
             /** Shares */
             shares: number;
             /** Avg Cost */

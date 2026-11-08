@@ -24,7 +24,7 @@ What it exercises, per docs/specs/web.md Step 2:
       boundary), and one on the last day with no next_open yet
 
 Connection settings come from the same TURTLE_WEB_DB_* variables the API uses, defaulting to
-the demo database. The script empties and refills its four tables, so it refuses to run against
+the demo database. The script empties and refills its five tables, so it refuses to run against
 a database that holds anything other than demo data.
 """
 
@@ -62,6 +62,16 @@ SYMBOLS = {
     BENCHMARK: "Demo Broad Market Index",
 }
 
+# EODHD sector names. DEMOF.US has no company row, as some live tickers have none.
+SECTORS = {
+    "DEMOA.US": "Financial Services",
+    "DEMOB.US": "Technology",
+    "DEMOC.US": "Industrials",
+    "DEMOD.US": "Healthcare",
+    "DEMOE.US": "Energy",
+    "DEMOG.US": "Healthcare",
+    "DEMOH.US": "Technology",
+}
 SPLIT_SYMBOL = "DEMOC.US"
 SPLIT_DAYS_BEFORE_END = 60  # the split lands while DEMOC.US is held (bought 120 days before end)
 
@@ -306,8 +316,9 @@ def main() -> None:
     }
     with psycopg.connect(**conninfo) as conn, conn.cursor() as cur:
         refuse_unless_demo(cur)
-        cur.execute("TRUNCATE turtle.daily_bars, turtle.ticker, turtle.signal, turtle.lightyear_transaction")
+        cur.execute("TRUNCATE turtle.daily_bars, turtle.ticker, turtle.company, turtle.signal, turtle.lightyear_transaction")
         cur.executemany("INSERT INTO turtle.ticker (code, name) VALUES (%s, %s)", list(SYMBOLS.items()))
+        cur.executemany("INSERT INTO turtle.company (ticker_code, sector) VALUES (%s, %s)", list(SECTORS.items()))
         cur.executemany(
             "INSERT INTO turtle.daily_bars (symbol, date, open, high, low, close, adjusted_close, volume) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             [(s, b.date, b.open, b.high, b.low, b.close, b.adjusted_close, b.volume) for s, rows in bars.items() for b in rows],

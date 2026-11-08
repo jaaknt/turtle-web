@@ -1039,7 +1039,9 @@ a single `<canvas>` set).
   total P&L vs benchmark P&L, open positions count, and the as-of date (the last history point).
   `totals` is `null` before the first fill: show an empty state, not a row of zeros.
   `unrealized_pct` can be `null` too.
-- **Positions table:** a PrimeVue `DataTable` sorted by `unrealized_pct` descending. The symbol
+- **Positions table:** a PrimeVue `DataTable` sorted by `unrealized_pct` descending. A Sector
+  column follows Name, from `turtle.company.sector` (EODHD fundamentals; "—" when a ticker has no
+  company row). The symbol
   cell is a `RouterLink` to `/chart/:symbol`. A `last_date` older than the as-of date renders as
   a warning badge.
 - **Two `LineChart`s:** "Holdings value vs cost basis" (`market_value`, `cost_basis`) and

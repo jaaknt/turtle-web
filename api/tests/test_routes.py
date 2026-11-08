@@ -27,6 +27,12 @@ def test_openapi_lists_all_six_routes(client: TestClient) -> None:
     assert paths == {"/api/healthz", "/api/portfolio", "/api/transactions", "/api/symbols", "/api/chart/{symbol}", "/api/signals"}
 
 
+def test_positions_carry_the_company_sector(client: TestClient) -> None:
+    sectors = {p["symbol"]: p["sector"] for p in client.get("/api/portfolio").json()["positions"]}
+    assert sectors[SPLIT_SYMBOL] == "Industrials"
+    assert sectors["DEMOF.US"] is None  # no turtle.company row: the LEFT JOIN keeps the position
+
+
 def test_portfolio_totals_equal_the_sums_over_positions(client: TestClient) -> None:
     body = client.get("/api/portfolio").json()
     totals, positions = body["totals"], body["positions"]

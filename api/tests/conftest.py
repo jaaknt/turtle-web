@@ -16,7 +16,7 @@ DEMO_DEFAULTS = {
     "TURTLE_WEB_DB_PORT": "5433",
     "TURTLE_WEB_DB_USER": "postgres",
     "TURTLE_WEB_DB_PASSWORD": "demo",
-    "TURTLE_WEB_BENCHMARK_SYMBOL": "BENCH.US",
+    "TURTLE_WEB_BENCHMARK_SYMBOLS": "BENCH.US,BENCHQ.US",
 }
 
 
@@ -30,7 +30,7 @@ def demo_settings() -> Settings:
         db_port=int(env["TURTLE_WEB_DB_PORT"]),
         db_user=env["TURTLE_WEB_DB_USER"],
         db_password=env["TURTLE_WEB_DB_PASSWORD"],
-        benchmark_symbol=env["TURTLE_WEB_BENCHMARK_SYMBOL"],
+        benchmark_symbols=env["TURTLE_WEB_BENCHMARK_SYMBOLS"],
     )
 
 

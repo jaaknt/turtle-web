@@ -93,7 +93,7 @@ footer.
 | Market value | `units × adjusted_close`, where each fill adds `units += quantity / f` and `f = adjusted_close / close` on the fill date |
 | Unrealized P&L | `market value − cost basis` |
 | Total P&L | `unrealized + realized` |
-| Benchmark P&L | A shadow portfolio: every buy spends the same cash on the benchmark (default `SPY.US`), every sell sells the same fraction of that position's shadow |
+| Benchmark P&L | Per benchmark (default `SPY.US` and `QQQ.US`), a shadow portfolio: every buy spends the same cash on the benchmark, every sell sells the same fraction of that position's shadow |
 
 **Why `units` instead of `shares × close`.** The Lightyear importer keeps only Buy/Sell rows, so a
 split never appears as a transaction. `shares × close` would show a 2:1 split as a 50% loss.
@@ -270,7 +270,9 @@ inline dependencies (`psycopg`), so it runs before `api/` exists and needs no ve
 always produces identical rows. It truncates its four tables, so it first refuses to run if the
 target holds any non-demo symbol or transaction reference.
 
-- **Symbols:** 8 synthetic tickers (`DEMOA.US` … `DEMOH.US`) plus `BENCH.US` as the benchmark.
+- **Symbols:** 8 synthetic tickers (`DEMOA.US` … `DEMOH.US`) plus `BENCH.US` and `BENCHQ.US` as
+  the benchmarks (standing in for SPY and QQQ; `BENCHQ.US` drifts faster with more volatility, from
+  its own seeded generator).
   Use made-up names, so no real company's price is implied.
 - **Bars:** about 750 business days of a geometric random walk. `high`/`low` sit a random 0–3%
   outside `open`/`close`, and `volume` is random.
@@ -311,11 +313,11 @@ TURTLE_WEB_DB_HOST=localhost
 TURTLE_WEB_DB_PORT=5433
 TURTLE_WEB_DB_USER=postgres
 TURTLE_WEB_DB_PASSWORD=demo
-TURTLE_WEB_BENCHMARK_SYMBOL=BENCH.US
+TURTLE_WEB_BENCHMARK_SYMBOLS=BENCH.US,BENCHQ.US
 ```
 
 **Verify:** `docker compose up -d --wait && uv run db/seed_demo.py`, then
-`SELECT count(*) FROM turtle.daily_bars` returns about 6,750 rows (9 symbols × ~750 days).
+`SELECT count(*) FROM turtle.daily_bars` returns about 7,500 rows (10 symbols × ~750 days).
 
 ### Step 3 — API skeleton
 
@@ -356,7 +358,11 @@ class Settings(BaseSettings):
     db_name: str = "trading"
     db_user: str = "turtle_web"
     db_password: str  # no default: a missing secret fails at startup, never falls back
-    benchmark_symbol: str = "SPY.US"
+    # Comma-separated in the environment (NoDecode, split by a validator that also strips, drops
+    # blanks and repeats); the first one's trading days form the ledger's calendar. At least one is
+    # required. The old singular TURTLE_WEB_BENCHMARK_SYMBOL is accepted as an alias (the plural
+    # wins), so an older .env neither fails as an extra input nor goes silently ignored.
+    benchmark_symbols: Annotated[list[str], NoDecode] = ["SPY.US", "QQQ.US"]
     signal_strategy: str = "bk50d_s12_v2.0"  # the baseline label the nightly run persists
     signal_ranking_strategy: str = "qullamaggie"  # the gate of 44 is only meaningful on this scale
     static_dir: Path | None = None  # web/dist in production; None in dev, where Vite serves the UI
@@ -521,7 +527,7 @@ Notes on SIGNALS:
 - **`turtle.signal` is seq-scanned** (306 rows today). Once it reaches tens of thousands of rows,
   consider an index on `(trading_strategy, signal_date)` in a turtle-backtest migration, not here.
 
-`:symbols` for CLOSES is the distinct transaction symbols plus the benchmark. `:start` is the
+`:symbols` for CLOSES is the distinct transaction symbols plus the benchmarks. `:start` is the
 first transaction date minus 7 days. The ledger seeds its last-known prices from those earlier
 closes (Step 5), so a fill on a day its symbol has no bar still has a prior close. psycopg adapts
 a Python `list[str]` to a Postgres array for `ANY(:symbols)`. The plan is
@@ -601,27 +607,28 @@ class _Position:
     units: float = 0.0  # shares in adjusted_close terms: sum of quantity / f at each fill
     cost: float = 0.0  # open cost basis, average-cost method, fees and tax included
     realized: float = 0.0
-    bench_units: float = 0.0  # shadow position in the benchmark
-    bench_realized: float = 0.0
+    bench_units: dict[str, float]  # shadow position per benchmark: a plain dict seeded with every
+    bench_realized: dict[str, float]  # benchmark, so an unknown one is a KeyError, not a silent 0
     first_buy: date | None = None
 
 
-def build(fills: list[Fill], closes: list[Close], benchmark: str) -> Ledger:
-    """Replay fills over the benchmark's trading calendar.
+def build(fills: list[Fill], closes: list[Close], benchmarks: list[str]) -> Ledger:
+    """Replay fills over the first benchmark's trading calendar.
 
     Args:
         fills: Every transaction, in any order; applied by date, stable within a day.
-        closes: Daily closes for every traded symbol and the benchmark.
-        benchmark: Symbol whose dates (plus any fill date after its last bar) form the calendar,
-            and which the shadow portfolio buys.
+        closes: Daily closes for every traded symbol and every benchmark.
+        benchmarks: Symbols the shadow portfolios buy, one each; a repeat counts once. The first
+            one's dates (plus any fill date after its last bar) form the calendar.
 
     Returns:
         Ledger: Open positions as of the last day, totals, and one history point per day.
     """
 ```
 
-The calendar is the benchmark's dates from the first fill on, **plus any fill date after the
-benchmark's last bar**. A fill imported before that day's bars are loaded would otherwise drop
+The calendar is the first benchmark's dates from the first fill on, **plus any fill date after
+its last bar**. Another benchmark's extra or missing days change nothing: it forward-fills like
+any symbol. A fill imported before that day's bars are loaded would otherwise drop
 out; with its own day it counts, valued at the previous close. Earlier fill dates are not added:
 an after-hours fill whose UTC date rolls into a Saturday lands on Monday instead of creating a
 weekend point.
@@ -633,15 +640,16 @@ The loop, per calendar day `d`:
    so a first fill on a day its symbol has no bar (a halt) still has a prior close. **On a split,
    rescale `shares`** of a held symbol (see below).
 2. Apply every fill dated `≤ d` not yet applied, using `f = last[s].adjusted_close / last[s].close`
-   and `b = last[benchmark].adjusted_close`:
+   and, for each benchmark `B`, `b = last[B].adjusted_close` (the `bench_*` terms are per `B`):
    - **buy:** `amount = q·price + fee + tax`; `shares += q`; `units += q / f`; `cost += amount`;
-     `bench_units += amount / b`.
+     `bench_units[B] += amount / b`.
    - **sell:** `frac = q / shares`; `cost_out = cost · frac`;
-     `realized += (q·price − fee − tax) − cost_out`; `bench_realized += bench_units·frac·b − cost_out`;
+     `realized += (q·price − fee − tax) − cost_out`; `bench_realized[B] += bench_units[B]·frac·b − cost_out`;
      then scale `shares`, `units`, `cost`, `bench_units` down by `frac`.
 3. Record a point: `market_value = Σ units · last[s].adjusted_close`, `cost_basis = Σ cost`,
    `realized = Σ realized`, `total_pnl = market_value − cost_basis + realized`,
-   `benchmark_pnl = Σ bench_units · b − cost_basis + Σ bench_realized`.
+   `benchmark_pnl[B] = Σ bench_units[B] · b − cost_basis + Σ bench_realized[B]`, a dict in the
+   order of `benchmarks`.
 
 **Splits.** The broker quotes sells in post-split shares, so `shares` must follow splits, or a sell
 after one is checked against the wrong count. There is no split table, but the bars show splits:
@@ -694,6 +702,10 @@ instead of the index.
 | First fill on a day its symbol has no bar, prior close in the lookback | Uses the seeded prior close; no exception |
 | Fill with no close anywhere on or before its date | `LedgerError` naming the symbol |
 | No benchmark bars | `LedgerError` naming the benchmark |
+| Two benchmarks, one doubles and one halves | Each shadow tracks its own; `benchmark_pnl` keys keep the given order |
+| Second benchmark has a day the first lacks | No history point for that day |
+| No bars for the second benchmark | `LedgerError` naming it |
+| The same benchmark listed twice | Counted once |
 
 **Verify:** `uv run pytest tests/test_ledger.py` passes, and the ex-dividend test fails if
 `units · adjusted_close` is replaced with `shares · close` in the history point. The split test no
@@ -734,7 +746,7 @@ which generates the frontend's TypeScript types in Step 7.
 | Route | Response | Built from |
 | --- | --- | --- |
 | `GET /api/healthz` | `{"status": "ok"}` | — |
-| `GET /api/portfolio` | `Portfolio` = `totals` + `positions[]` + `history[]` | TRANSACTIONS + CLOSES → `ledger.build` |
+| `GET /api/portfolio` | `Portfolio` = `benchmarks[]` (the configured order; the page uses it rather than `benchmark_pnl`'s key order) + `totals` + `positions[]` + `history[]` | TRANSACTIONS + CLOSES → `ledger.build` |
 | `GET /api/transactions` | `Transaction[]` | TRANSACTIONS, plus `slippage_pct = price / next_open − 1` for linked buys |
 | `GET /api/symbols` | `Symbol[]` | SYMBOLS, cached in `app.state.symbols` for an hour |
 | `GET /api/chart/{symbol}?start=&adjusted=false` | `ChartData` | BARS, plus TRANSACTIONS + CLOSES → `ledger.build` for `avg_cost` |
@@ -765,7 +777,7 @@ class HistoryPoint(BaseModel):
     cost_basis: float
     realized: float
     total_pnl: float
-    benchmark_pnl: float
+    benchmark_pnl: dict[str, float]  # by benchmark symbol, in the configured order
 
 
 class Bar(BaseModel):
@@ -1036,7 +1048,8 @@ a single `<canvas>` set).
 **`PortfolioView.vue`** (`/`): one `api.portfolio()` call.
 
 - **KPI row** (`KpiTile.vue`): market value, cost basis, unrealized P&L ($ and %), realized P&L,
-  total P&L vs benchmark P&L, open positions count, and the as-of date (the last history point).
+  total P&L, one "Total P&L vs SPY" tile per benchmark (the difference, with that benchmark's
+  P&L below it), open positions count, and the as-of date (the last history point).
   `totals` is `null` before the first fill: show an empty state, not a row of zeros.
   `unrealized_pct` can be `null` too.
 - **Positions table:** a PrimeVue `DataTable` sorted by `unrealized_pct` descending. A Sector
@@ -1046,7 +1059,8 @@ a single `<canvas>` set).
   cell is a `RouterLink` to `/chart/:symbol`. A `last_date` older than the as-of date renders as
   a warning badge.
 - **Two `LineChart`s:** "Holdings value vs cost basis" (`market_value`, `cost_basis`) and
-  "P&L vs benchmark" (`total_pnl`, `benchmark_pnl`).
+  "P&L vs SPY and QQQ" (`total_pnl` and one line per benchmark, in `benchmarks` order; tickers
+  shown without `.US`, three or more read "SPY, QQQ and IWM").
 - **Footer:** the caveats from [The P&L model](#the-pl-model), in `PnlCaveats.vue`; keep the two
   in step. The sell caveat drops its note to developers (add a ledger fixture), which is not for
   the page.
@@ -1118,7 +1132,7 @@ jobs:
       TURTLE_WEB_DB_PORT: "5433"
       TURTLE_WEB_DB_USER: postgres
       TURTLE_WEB_DB_PASSWORD: demo
-      TURTLE_WEB_BENCHMARK_SYMBOL: BENCH.US
+      TURTLE_WEB_BENCHMARK_SYMBOLS: BENCH.US,BENCHQ.US
       PGPASSWORD: demo
     steps:
       - uses: actions/checkout@v4
@@ -1310,8 +1324,8 @@ The earlier draft of this document was organised into numbered sections. They ma
    same `DB_WEB_PASSWORD` in turtle-web's `secrets.env` (Step 11).
 3. **Verify sell semantics** against the first real sell statement, and add it as a ledger fixture.
 4. **Pick the Tailscale bind address** for `BIND_HOST`.
-5. **Benchmark choice:** `SPY.US` by default. An equal-weight or small-cap benchmark may suit a
-   momentum book better; it is a one-line setting.
+5. **Benchmark choice:** `SPY.US` and `QQQ.US` by default. An equal-weight or small-cap benchmark
+   may suit a momentum book better; it is a one-line setting (`TURTLE_WEB_BENCHMARK_SYMBOLS`).
 6. **Vacuum `daily_bars` (turtle-backtest).** As of 2026-11-08, autovacuum last ran on
    `turtle.daily_bars` on 2026-07-19: the ~430k rows inserted nightly since then stay far below the
    default insert threshold (20% of 20M rows). The stale visibility map turns SYMBOLS' index-only

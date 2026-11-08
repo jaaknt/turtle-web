@@ -34,7 +34,7 @@ jobs:
       TURTLE_WEB_DB_PORT: "5433"
       TURTLE_WEB_DB_USER: postgres
       TURTLE_WEB_DB_PASSWORD: demo
-      TURTLE_WEB_BENCHMARK_SYMBOL: BENCH.US
+      TURTLE_WEB_BENCHMARK_SYMBOLS: BENCH.US,BENCHQ.US
       PGPASSWORD: demo
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -58,6 +58,14 @@ def test_total_pnl_has_no_discontinuity(client: TestClient) -> None:
         assert abs(curr["total_pnl"] - prev["total_pnl"]) < 0.05 * curr["market_value"], curr["date"]
 
 
+def test_history_carries_every_benchmark_in_the_configured_order(client: TestClient) -> None:
+    body = client.get("/api/portfolio").json()
+    assert body["benchmarks"] == ["BENCH.US", "BENCHQ.US"]
+    history = body["history"]
+    assert all(sorted(h["benchmark_pnl"]) == ["BENCH.US", "BENCHQ.US"] for h in history)
+    assert history[-1]["benchmark_pnl"]["BENCH.US"] != history[-1]["benchmark_pnl"]["BENCHQ.US"]
+
+
 def test_transactions_have_slippage_only_for_linked_buys(client: TestClient) -> None:
     rows = client.get("/api/transactions").json()
     assert len(rows) == 9
@@ -72,14 +80,14 @@ def test_transactions_have_slippage_only_for_linked_buys(client: TestClient) -> 
 def test_symbols_are_cached_for_an_hour(client: TestClient) -> None:
     response = client.get("/api/symbols")
     assert response.headers["cache-control"] == "max-age=3600"
-    assert len(response.json()) == 9
+    assert len(response.json()) == 10  # 8 demo tickers and 2 benchmarks
 
 
 def test_symbol_cache_reloads_after_an_hour(client: TestClient) -> None:
     client.get("/api/symbols")
     state = client.app.state  # type: ignore[attr-defined]
     state.symbols = replace(state.symbols, symbols=[], names={}, loaded_at=state.symbols.loaded_at - SYMBOLS_TTL_SECONDS - 1)
-    assert len(client.get("/api/symbols").json()) == 9
+    assert len(client.get("/api/symbols").json()) == 10
 
 
 def test_chart_bars_are_dates_and_the_split_shows_in_raw_candles(client: TestClient) -> None:
@@ -135,7 +143,7 @@ def test_signals_reject_out_of_range_parameters(client: TestClient, params: dict
 
 
 def test_ledger_error_is_a_500_naming_the_ticker(demo_engine: sa.Engine, demo_settings: Settings) -> None:
-    settings = demo_settings.model_copy(update={"benchmark_symbol": "MISSING.US"})
+    settings = demo_settings.model_copy(update={"benchmark_symbols": ["BENCH.US", "MISSING.US"]})
     with TestClient(create_app(settings), raise_server_exceptions=False) as c:
         response = c.get("/api/portfolio")
     assert response.status_code == 500
@@ -143,7 +151,7 @@ def test_ledger_error_is_a_500_naming_the_ticker(demo_engine: sa.Engine, demo_se
 
 
 def test_chart_survives_a_ledger_error_without_its_cost_line(demo_engine: sa.Engine, demo_settings: Settings) -> None:
-    settings = demo_settings.model_copy(update={"benchmark_symbol": "MISSING.US"})
+    settings = demo_settings.model_copy(update={"benchmark_symbols": ["MISSING.US"]})
     with TestClient(create_app(settings)) as c:
         response = c.get(f"/api/chart/{SPLIT_SYMBOL}")
     assert response.status_code == 200

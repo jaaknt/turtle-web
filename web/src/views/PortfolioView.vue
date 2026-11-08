@@ -17,13 +17,40 @@ const unrealized = computed(() => (totals.value ? totals.value.market_value - to
 const unrealizedPct = computed(() =>
   totals.value && totals.value.cost_basis !== 0 ? unrealized.value! / totals.value.cost_basis : null,
 )
-const vsBenchmark = computed(() => (totals.value ? totals.value.total_pnl - totals.value.benchmark_pnl : null))
+// The configured order (SPY.US, QQQ.US), sent as its own list: object key order is not reliable
+// (JavaScript moves integer-like keys first).
+const benchmarks = computed(() => portfolio.value?.benchmarks ?? [])
+const BENCHMARK_COLORS = ['#f59e0b', '#a855f7', '#ef4444', '#64748b']
+const ticker = (symbol: string) => symbol.replace(/\.US$/, '')
+const vsBenchmarks = computed(() => {
+  const t = totals.value
+  if (!t) return []
+  return benchmarks.value.map((b) => {
+    const pnl = t.benchmark_pnl[b]!
+    return { symbol: b, ticker: ticker(b), pnl, diff: t.total_pnl - pnl }
+  })
+})
 
-function line(name: string, color: string, key: 'market_value' | 'cost_basis' | 'total_pnl' | 'benchmark_pnl'): LineSeriesSpec {
-  return { name, color, points: (portfolio.value?.history ?? []).map((h) => ({ time: h.date, value: h[key] })) }
+// "SPY", "SPY and QQQ", "SPY, QQQ and IWM"
+const benchmarkList = computed(() => {
+  const names = benchmarks.value.map(ticker)
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+})
+
+type History = NonNullable<typeof portfolio.value>['history'][number]
+function line(name: string, color: string, value: (h: History) => number): LineSeriesSpec {
+  return { name, color, points: (portfolio.value?.history ?? []).map((h) => ({ time: h.date, value: value(h) })) }
 }
-const valueSeries = computed(() => [line('Market value', '#3b82f6', 'market_value'), line('Cost basis', '#9ca3af', 'cost_basis')])
-const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), line('Benchmark P&L', '#f59e0b', 'benchmark_pnl')])
+const valueSeries = computed(() => [
+  line('Market value', '#3b82f6', (h) => h.market_value),
+  line('Cost basis', '#9ca3af', (h) => h.cost_basis),
+])
+const pnlSeries = computed(() => [
+  line('Total P&L', '#26a69a', (h) => h.total_pnl),
+  ...benchmarks.value.map((b, i) =>
+    line(`${ticker(b)} P&L`, BENCHMARK_COLORS[i % BENCHMARK_COLORS.length]!, (h) => h.benchmark_pnl[b]!),
+  ),
+])
 </script>
 
 <template>
@@ -38,12 +65,15 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
       <KpiTile label="Cost basis" :value="money(totals.cost_basis)" />
       <KpiTile label="Unrealized P&L" :value="money(unrealized)" :sub="pct(unrealizedPct)" :tone="pnlClass(unrealized)" />
       <KpiTile label="Realized P&L" :value="money(totals.realized)" :tone="pnlClass(totals.realized)" />
+      <KpiTile label="Total P&L" :value="money(totals.total_pnl)" :tone="pnlClass(totals.total_pnl)" />
       <KpiTile
-        label="Total P&L"
-        :value="money(totals.total_pnl)"
-        :sub="`${money(vsBenchmark)} vs benchmark (${money(totals.benchmark_pnl)})`"
-        :tone="pnlClass(totals.total_pnl)"
-        :subTone="pnlClass(vsBenchmark)"
+        v-for="b in vsBenchmarks"
+        :key="b.symbol"
+        :label="`Total P&L vs ${b.ticker}`"
+        :value="money(b.diff)"
+        :sub="`${b.ticker} P&L ${money(b.pnl)}`"
+        :tone="pnlClass(b.diff)"
+        subTone=""
       />
       <KpiTile label="Open positions" :value="String(portfolio.positions.length)" />
       <KpiTile label="As of" :value="asOf ?? '—'" />
@@ -104,7 +134,7 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
         <LineChart :series="valueSeries" />
       </div>
       <div>
-        <h2>P&amp;L vs benchmark</h2>
+        <h2>P&amp;L vs {{ benchmarkList }}</h2>
         <LineChart :series="pnlSeries" />
       </div>
     </section>

@@ -12,8 +12,8 @@ Conventions:
       day f jumps by the split ratio (x2 for 2:1), while an ex-dividend day moves it a few percent.
     - Every comparison of share counts allows a float tolerance of 1e-9, so fractional shares
       (0.1 + 0.2 sold as 0.3) neither raise a false oversell nor leave a ghost position.
-    - The benchmark is a shadow portfolio: every buy puts the same cash into the benchmark, and
-      every sell takes out the same fraction of it.
+    - Each benchmark is a shadow portfolio: every buy puts the same cash into it, and every sell
+      takes out the same fraction of it. Several benchmarks run side by side, independently.
 """
 
 from collections import defaultdict
@@ -75,7 +75,7 @@ class Point:
     cost_basis: float
     realized: float
     total_pnl: float
-    benchmark_pnl: float
+    benchmark_pnl: dict[str, float]  # by benchmark symbol, in the order given to build()
 
 
 @dataclass(frozen=True)
@@ -89,19 +89,25 @@ class Ledger:
 
 @dataclass
 class _Position:
+    # Shadow position per benchmark: plain dicts holding every benchmark from the start (see
+    # _new_position), so a benchmark that was never set up is a KeyError, not a silent 0.
+    bench_units: dict[str, float]
+    bench_realized: dict[str, float]
     shares: float = 0.0  # as the broker counts them: rescaled by every split while held
     units: float = 0.0  # shares in adjusted_close terms: sum of quantity / f at each fill
     cost: float = 0.0  # open cost basis, average-cost method, fees and tax included
     realized: float = 0.0
-    bench_units: float = 0.0  # shadow position in the benchmark
-    bench_realized: float = 0.0
     first_buy: date | None = None
 
 
-def build(fills: list[Fill], closes: list[Close], benchmark: str) -> Ledger:
-    """Replay fills over the benchmark's trading calendar.
+def _new_position(benchmarks: list[str]) -> _Position:
+    return _Position(bench_units=dict.fromkeys(benchmarks, 0.0), bench_realized=dict.fromkeys(benchmarks, 0.0))
 
-    The calendar is the benchmark's dates from the first fill on, plus any fill date after the
+
+def build(fills: list[Fill], closes: list[Close], benchmarks: list[str]) -> Ledger:
+    """Replay fills over the first benchmark's trading calendar.
+
+    The calendar is the first benchmark's dates from the first fill on, plus any fill date after the
     benchmark's last bar: a fill imported before that day's bars are loaded must still count,
     valued at the previous close. Each day first takes in every close dated on or before it (so
     missing days forward-fill, and the CLOSES query's 7-day lookback seeds prices for a first fill
@@ -111,19 +117,25 @@ def build(fills: list[Fill], closes: list[Close], benchmark: str) -> Ledger:
 
     Args:
         fills: Every transaction, in any order; applied by date, stable within a day.
-        closes: Daily closes for every traded symbol and the benchmark.
-        benchmark: Symbol whose dates form the calendar and which the shadow portfolio buys.
+        closes: Daily closes for every traded symbol and every benchmark.
+        benchmarks: Symbols the shadow portfolios buy, one each; the first one's dates form the
+            calendar. A list, not one str, which would iterate as characters. A repeated symbol
+            counts once: twice would buy that benchmark twice over.
 
     Returns:
         Ledger: Open positions as of the last day, totals, and one history point per day.
 
     Raises:
-        LedgerError: A fill's symbol or the benchmark has no close by the day the fill is applied,
+        LedgerError: A fill's symbol or a benchmark has no close by the day the fill is applied,
             or a sell exceeds the shares held. A ledger that silently drops a position is worse
             than a loud error naming the ticker.
     """
+    benchmarks = list(dict.fromkeys(benchmarks))
+    if not benchmarks:
+        raise ValueError("at least one benchmark is required")
     if not fills:
         return Ledger(positions=[], totals=None, history=[])
+    benchmark = benchmarks[0]
 
     fills = sorted(fills, key=lambda f: f.date)
     closes = sorted(closes, key=lambda c: c.date)
@@ -132,7 +144,7 @@ def build(fills: list[Fill], closes: list[Close], benchmark: str) -> Ledger:
     calendar = sorted(bench_days | {f.date for f in fills if f.date > last_bench_day})
 
     last: dict[str, Close] = {}
-    book: dict[str, _Position] = defaultdict(_Position)
+    book: dict[str, _Position] = defaultdict(lambda: _new_position(benchmarks))
     history: list[Point] = []
     next_close = next_fill = 0
     for day in calendar:
@@ -144,9 +156,9 @@ def build(fills: list[Fill], closes: list[Close], benchmark: str) -> Ledger:
             last[c.symbol] = c
             next_close += 1
         while next_fill < len(fills) and fills[next_fill].date <= day:
-            _apply(fills[next_fill], book[fills[next_fill].symbol], last, benchmark)
+            _apply(fills[next_fill], book[fills[next_fill].symbol], last, benchmarks)
             next_fill += 1
-        history.append(_point(day, book, last, benchmark))
+        history.append(_point(day, book, last, benchmarks))
 
     positions = [
         OpenPosition(
@@ -178,20 +190,20 @@ def _split_ratio(prev: Close, curr: Close) -> float:
     return float(1 / Fraction(1 / ratio).limit_denominator(_SPLIT_MAX_DENOMINATOR))
 
 
-def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmark: str) -> None:
-    for symbol in (fill.symbol, benchmark):
+def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmarks: list[str]) -> None:
+    for symbol in (fill.symbol, *benchmarks):
         if symbol not in last:
             raise LedgerError(f"no close for {symbol} on or before {fill.date} (fill of {fill.symbol})")
     c = last[fill.symbol]
     f = c.adjusted_close / c.close
-    b = last[benchmark].adjusted_close
 
     if fill.side == "buy":
         amount = fill.quantity * fill.price + fill.fee + fill.tax
         p.shares += fill.quantity
         p.units += fill.quantity / f
         p.cost += amount
-        p.bench_units += amount / b
+        for bm in benchmarks:
+            p.bench_units[bm] += amount / last[bm].adjusted_close
         if p.first_buy is None:
             p.first_buy = fill.date
     elif fill.side == "sell":
@@ -200,30 +212,37 @@ def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmark: str) -> 
         frac = fill.quantity / p.shares
         cost_out = p.cost * frac
         p.realized += (fill.quantity * fill.price - fill.fee - fill.tax) - cost_out
-        p.bench_realized += p.bench_units * frac * b - cost_out
+        for bm in benchmarks:
+            p.bench_realized[bm] += p.bench_units[bm] * frac * last[bm].adjusted_close - cost_out
         keep = 1.0 - frac
         p.shares *= keep
         p.units *= keep
         p.cost *= keep
-        p.bench_units *= keep
+        for bm in benchmarks:
+            p.bench_units[bm] *= keep
         if p.shares <= _EPSILON:
             p.first_buy = None  # a later buy opens a new holding period
     else:
         raise LedgerError(f"unknown side {fill.side!r} for {fill.symbol} on {fill.date}")
 
 
-def _point(day: date, book: dict[str, _Position], last: dict[str, Close], benchmark: str) -> Point:
-    b = last[benchmark].adjusted_close
-    market_value = sum(p.units * last[s].adjusted_close for s, p in book.items() if p.units)
-    cost_basis = sum(p.cost for p in book.values())
-    realized = sum(p.realized for p in book.values())
-    bench_value = sum(p.bench_units for p in book.values()) * b
-    bench_realized = sum(p.bench_realized for p in book.values())
+def _point(day: date, book: dict[str, _Position], last: dict[str, Close], benchmarks: list[str]) -> Point:
+    market_value = cost_basis = realized = 0.0
+    bench_units = dict.fromkeys(benchmarks, 0.0)
+    bench_realized = dict.fromkeys(benchmarks, 0.0)
+    for s, p in book.items():  # one pass over the book, whatever the number of benchmarks
+        if p.units:
+            market_value += p.units * last[s].adjusted_close
+        cost_basis += p.cost
+        realized += p.realized
+        for bm in benchmarks:
+            bench_units[bm] += p.bench_units[bm]
+            bench_realized[bm] += p.bench_realized[bm]
     return Point(
         date=day,
         market_value=market_value,
         cost_basis=cost_basis,
         realized=realized,
         total_pnl=market_value - cost_basis + realized,
-        benchmark_pnl=bench_value - cost_basis + bench_realized,
+        benchmark_pnl={bm: bench_units[bm] * last[bm].adjusted_close - cost_basis + bench_realized[bm] for bm in benchmarks},
     )

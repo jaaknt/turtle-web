@@ -50,14 +50,14 @@ def _ledger(request: Request, transactions: list[sa.RowMapping]) -> ledger.Ledge
     fills = [
         ledger.Fill(t["transacted_at"].date(), t["symbol"], t["side"], t["quantity"], t["price"], t["fee"], t["tax"]) for t in transactions
     ]
-    benchmark = _settings(request).benchmark_symbol
+    benchmarks = _settings(request).benchmark_symbols
     if not fills:
-        return ledger.build([], [], benchmark)
-    symbols = sorted({f.symbol for f in fills} | {benchmark})
+        return ledger.build([], [], benchmarks)
+    symbols = sorted({f.symbol for f in fills} | set(benchmarks))
     start = min(f.date for f in fills) - timedelta(days=LOOKBACK_DAYS)
     rows = _rows(request, sql.CLOSES, symbols=symbols, start=start)
     closes = [ledger.Close(r["symbol"], r["date"], r["close"], r["adjusted_close"]) for r in rows]
-    return ledger.build(fills, closes, benchmark)
+    return ledger.build(fills, closes, benchmarks)
 
 
 @dataclass(frozen=True)
@@ -99,7 +99,7 @@ def healthz() -> dict[str, str]:
 
 @router.get("/portfolio", response_model=Portfolio)
 def portfolio(request: Request) -> Portfolio:
-    """Open positions, totals and daily P&L history against the shadow benchmark.
+    """Open positions, totals and daily P&L history against each shadow benchmark.
 
     Args:
         request: The incoming request, carrying the engine and settings.
@@ -108,8 +108,9 @@ def portfolio(request: Request) -> Portfolio:
     names = {t["symbol"]: t["name"] for t in transactions}
     sectors = {t["symbol"]: t["sector"] for t in transactions}
     result = _ledger(request, transactions)
+    benchmarks = _settings(request).benchmark_symbols
     if result.totals is None:
-        return Portfolio(totals=None, positions=[], history=[])
+        return Portfolio(benchmarks=benchmarks, totals=None, positions=[], history=[])
     as_of = result.totals.date
     positions = [
         Position(
@@ -131,6 +132,7 @@ def portfolio(request: Request) -> Portfolio:
         for p in result.positions
     ]
     return Portfolio(
+        benchmarks=benchmarks,
         totals=_point(result.totals),
         positions=positions,
         history=[_point(p) for p in result.history],

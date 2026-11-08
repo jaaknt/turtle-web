@@ -18,7 +18,7 @@ class HistoryPoint(BaseModel):
     cost_basis: float
     realized: float
     total_pnl: float
-    benchmark_pnl: float
+    benchmark_pnl: dict[str, float]  # by benchmark symbol, in the configured order
 
 
 class Position(BaseModel):
@@ -43,6 +43,7 @@ class Position(BaseModel):
 class Portfolio(BaseModel):
     """Totals, open positions and daily history; totals.realized includes fully closed positions."""
 
+    benchmarks: list[str]  # benchmark_pnl's keys in the configured order; JSON key order is not to be relied on
     totals: HistoryPoint | None  # None before the first transaction
     positions: list[Position]
     history: list[HistoryPoint]

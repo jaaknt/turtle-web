@@ -36,7 +36,7 @@ export interface paths {
         };
         /**
          * Portfolio
-         * @description Open positions, totals and daily P&L history against the shadow benchmark.
+         * @description Open positions, totals and daily P&L history against each shadow benchmark.
          *
          *     Args:
          *         request: The incoming request, carrying the engine and settings.
@@ -236,13 +236,17 @@ export interface components {
             /** Total Pnl */
             total_pnl: number;
             /** Benchmark Pnl */
-            benchmark_pnl: number;
+            benchmark_pnl: {
+                [key: string]: number;
+            };
         };
         /**
          * Portfolio
          * @description Totals, open positions and daily history; totals.realized includes fully closed positions.
          */
         Portfolio: {
+            /** Benchmarks */
+            benchmarks: string[];
             totals: components["schemas"]["HistoryPoint"] | null;
             /** Positions */
             positions: components["schemas"]["Position"][];

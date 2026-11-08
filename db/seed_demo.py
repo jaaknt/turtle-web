@@ -9,7 +9,7 @@ Run against the docker-compose database (schema already loaded from db/schema.sq
     docker compose up -d --wait && uv run db/seed_demo.py
 
 Everything is synthetic: made-up tickers (DEMOA.US ... DEMOH.US) with made-up names, and BENCH.US
-as the benchmark. No real market or account data may ever enter this repository.
+and BENCHQ.US as the benchmarks. No real market or account data may ever enter this repository.
 
 The data ends on the last weekday on or before --end-date (default: today), because the API's
 queries are relative to CURRENT_DATE (signals from the last 90 days, the latest bar). With the
@@ -43,7 +43,9 @@ import psycopg
 
 SEED = 42
 TRADING_DAYS = 750
-BENCHMARK = "BENCH.US"
+BENCHMARK = "BENCH.US"  # broad market, stands in for SPY.US
+GROWTH_BENCHMARK = "BENCHQ.US"  # stands in for QQQ.US
+BENCHMARKS = (BENCHMARK, GROWTH_BENCHMARK)
 STRATEGY = "bk50d_s12_v2.0"
 RANKING_STRATEGY = "qullamaggie"
 GATE = 44
@@ -60,6 +62,7 @@ SYMBOLS = {
     "DEMOG.US": "Garnet Demo Health",
     "DEMOH.US": "Harbor Demo Software",
     BENCHMARK: "Demo Broad Market Index",
+    GROWTH_BENCHMARK: "Demo Growth Index",
 }
 
 # GICS sector names, as the live turtle.company holds. DEMOF.US has no company row, as some live
@@ -164,13 +167,12 @@ def random_walk(rng: random.Random, days: list[date], split_index: int | None) -
     return bars
 
 
-def benchmark_walk(rng: random.Random, days: list[date]) -> list[Bar]:
-    """Generate the benchmark: lower volatility, steady upward drift, no split."""
-    level = 400.0
+def benchmark_walk(rng: random.Random, days: list[date], level: float = 400.0, drift: float = 0.0004, vol: float = 0.01) -> list[Bar]:
+    """Generate a benchmark: lower volatility than a stock, steady upward drift, no split."""
     bars: list[Bar] = []
     prev = level
     for d in days:
-        level *= math.exp(rng.gauss(0.0004, 0.01))
+        level *= math.exp(rng.gauss(drift, vol))
         open_ = prev * (1 + rng.gauss(0, 0.003))
         high = max(open_, level) * (1 + rng.uniform(0, 0.008))
         low = min(open_, level) * (1 - rng.uniform(0, 0.008))
@@ -218,9 +220,11 @@ def build(end: date) -> tuple[dict[str, list[Bar]], list[tuple], list[tuple]]:
     last = len(days) - 1
     split_index = last - SPLIT_DAYS_BEFORE_END
 
-    bars = {s: random_walk(rng, days, split_index if s == SPLIT_SYMBOL else None) for s in SYMBOLS if s != BENCHMARK}
+    bars = {s: random_walk(rng, days, split_index if s == SPLIT_SYMBOL else None) for s in SYMBOLS if s not in BENCHMARKS}
     bars[BENCHMARK] = benchmark_walk(rng, days)
-    traded = [s for s in SYMBOLS if s != BENCHMARK]
+    # Its own generator, so adding it left every other row as it was.
+    bars[GROWTH_BENCHMARK] = benchmark_walk(random.Random(SEED + 1), days, level=300.0, drift=0.0006, vol=0.014)
+    traded = [s for s in SYMBOLS if s not in BENCHMARKS]
 
     # Signals: (symbol, index, ranking). A linked buy fills the day after its signal.
     signals: list[tuple[str, int, int]] = []

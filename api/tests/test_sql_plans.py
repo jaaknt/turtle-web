@@ -24,7 +24,7 @@ DATE_BOUND = re.compile(r"\bdate\s*(?:[<>]=?|=)")
 def _params(settings: Settings) -> dict[str, dict[str, Any]]:
     return {
         "TRANSACTIONS": {},
-        "CLOSES": {"symbols": ["DEMOA.US", settings.benchmark_symbol], "start": START},
+        "CLOSES": {"symbols": ["DEMOA.US", *settings.benchmark_symbols], "start": START},
         "BARS": {"symbol": "DEMOC.US", "start": START},
         "SIGNALS": {
             "strategy": settings.signal_strategy,

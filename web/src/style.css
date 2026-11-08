@@ -46,7 +46,7 @@ body {
 
 .topbar .version {
   margin-left: auto;
-  font-size: 0.8rem;
+  font-size: 1rem; /* the nav links' size */
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }

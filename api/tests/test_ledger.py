@@ -1,10 +1,11 @@
 """The ledger's rules, one per test, on hand-built fixtures. No database."""
 
+import re
 from datetime import date, timedelta
 
 import pytest
 
-from turtleweb.ledger import Close, Fill, build
+from turtleweb.ledger import Close, Fill, LedgerError, build
 
 BENCH = "BENCH.US"
 D0 = date(2026, 1, 5)  # a Monday
@@ -33,7 +34,8 @@ def test_single_buy_at_a_flat_price_is_down_exactly_the_fee() -> None:
     (position,) = ledger.positions
     assert position.market_value - position.cost == pytest.approx(-1)
     assert position.realized == 0
-    assert ledger.totals is not None and ledger.totals.total_pnl == pytest.approx(-1)
+    assert ledger.totals is not None
+    assert ledger.totals.total_pnl == pytest.approx(-1)
 
 
 def test_split_while_held_leaves_market_value_unchanged() -> None:
@@ -55,7 +57,8 @@ def test_selling_every_post_split_share_closes_the_position() -> None:
     fills = [buy(0, "A", 10, 100), sell(3, "A", 20, 55)]
     ledger = build(fills, closes("A", SPLIT_RAW, SPLIT_ADJ) + closes(BENCH, [10] * 4), [BENCH])
     assert ledger.positions == []
-    assert ledger.totals is not None and ledger.totals.realized == pytest.approx(20 * 55 - 1000)
+    assert ledger.totals is not None
+    assert ledger.totals.realized == pytest.approx(20 * 55 - 1000)
 
 
 def test_selling_half_the_post_split_shares_keeps_half() -> None:
@@ -151,7 +154,7 @@ def test_fill_after_the_last_bar_still_counts() -> None:
 
 
 def test_fill_with_no_close_on_or_before_its_date_raises_naming_the_symbol() -> None:
-    with pytest.raises(ValueError, match="ZZZ.US"):
+    with pytest.raises(ValueError, match=re.escape("ZZZ.US")):
         build([buy(0, "ZZZ.US", 10, 100)], closes(BENCH, [10] * 3), [BENCH])
 
 
@@ -193,7 +196,9 @@ def test_fully_closed_position_leaves_positions_but_stays_in_totals() -> None:
 
 def test_no_fills_is_an_empty_ledger() -> None:
     ledger = build([], closes(BENCH, [10] * 3), [BENCH])
-    assert ledger.positions == [] and ledger.history == [] and ledger.totals is None
+    assert ledger.positions == []
+    assert ledger.history == []
+    assert ledger.totals is None
 
 
 def test_each_benchmark_is_its_own_shadow_portfolio() -> None:
@@ -217,7 +222,7 @@ def test_the_first_benchmark_sets_the_calendar() -> None:
 
 
 def test_missing_second_benchmark_bars_raise_naming_it() -> None:
-    with pytest.raises(ValueError, match="QQQ.US"):
+    with pytest.raises(ValueError, match=re.escape("QQQ.US")):
         build([buy(0, "A", 10, 100)], closes("A", [100] * 3) + closes(BENCH, [10] * 3), [BENCH, "QQQ.US"])
 
 
@@ -226,3 +231,14 @@ def test_a_repeated_benchmark_counts_once() -> None:
     data = closes("A", [100, 100]) + closes(BENCH, [10, 20])
     once = build(fills, data, [BENCH]).history[-1].benchmark_pnl
     assert build(fills, data, [BENCH, BENCH]).history[-1].benchmark_pnl == pytest.approx(once) == {BENCH: 1000}
+
+
+def test_no_benchmark_raises() -> None:
+    with pytest.raises(ValueError, match="at least one benchmark"):
+        build([buy(0, "A", 10, 100)], closes("A", [100] * 3), [])
+
+
+def test_unknown_fill_side_raises_naming_it() -> None:
+    fill = Fill(day(0), "A", "short", 10, 100, 0.0, 0.0)
+    with pytest.raises(LedgerError, match="unknown side 'short' for A"):
+        build([fill], closes("A", [100] * 3) + closes(BENCH, [10] * 3), [BENCH])

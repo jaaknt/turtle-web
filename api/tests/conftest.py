@@ -36,7 +36,7 @@ def demo_settings() -> Settings:
 
 @pytest.fixture(scope="session")
 def demo_engine(demo_settings: Settings) -> Iterator[sa.Engine]:
-    """The app's read-only engine on the demo database; skips if it is not running.
+    """The app's read-only engine on the demo database; skips if it is not running (fails under CI).
 
     Start it with `docker compose up -d --wait && uv run db/seed_demo.py` from the repo root.
     Fails if the data is stale: the queries use CURRENT_DATE windows, so an old seed would make
@@ -48,6 +48,8 @@ def demo_engine(demo_settings: Settings) -> Iterator[sa.Engine]:
             latest = conn.execute(sa.text("SELECT max(date) FROM turtle.daily_bars")).scalar_one()
     except sa.exc.OperationalError as exc:
         engine.dispose()
+        if os.environ.get("CI"):  # in CI a missing database is a broken job, not a reason to pass
+            pytest.fail(f"demo database not reachable in CI: {exc}")
         pytest.skip(f"demo database not running: {exc}")
     if latest is None or latest < date.today() - timedelta(days=7):
         engine.dispose()

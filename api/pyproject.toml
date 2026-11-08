@@ -1,7 +1,10 @@
 [project]
 name = "turtleweb"
-version = "0.1.0"
+version = "0.0.0"  # placeholder: the git tag (vX.Y.Z, see release.yml) is the real version
 description = "Read-only API behind the turtle-web dashboard"
+authors = [{ name = "Jaak Niit", email = "jaak.niit@gmail.com" }]
+readme = "../README.md"  # outside api/: fine for uv sync and `uv build --wheel`, not for a wheel built from the sdist
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.162.2",
@@ -23,19 +26,48 @@ dev = [
     "httpx2>=2.16.0",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.17.4",
 ]
 
 [tool.ruff]
 target-version = "py314"
 line-length = 140
-lint.select = ["E", "W", "F", "I", "B", "C4", "UP"]
+lint.select = [
+    "E", "W", "F", "I", "B", "C4", "UP",  # turtle-backtest's set
+    "RUF",   # ruff-specific: unescaped match= patterns, pairwise, mutable class defaults
+    "PT",    # pytest style: one condition per assert, so a failure names the half that broke
+    "SIM",   # simplifications
+    "RET",   # return-statement consistency
+    "PERF",  # performance anti-patterns in loops
+    "FAST",  # FastAPI: Annotated dependencies, redundant response_model
+]
 
 [tool.mypy]
 python_version = "3.14"
 strict = true
 plugins = ["pydantic.mypy"]
 files = ["turtleweb", "tests"]
+warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined", "deprecated"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
+# not init_typed: tests pass benchmark_symbols as the comma-separated string the environment holds
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["-ra"]  # list every skip and xfail with its reason
+strict = true  # pytest 9: strict config, markers, xfail and parametrize ids
+# A new deprecation in FastAPI, SQLAlchemy or pydantic fails the run; tolerate one with an explicit ignore.
+filterwarnings = ["error"]
+
+# Coverage on demand, not on every run: `uv run pytest --cov` (the ledger is the module it matters for).
+[tool.coverage.run]
+source = ["turtleweb"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

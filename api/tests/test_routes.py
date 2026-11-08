@@ -3,6 +3,7 @@
 import re
 from collections.abc import Iterator
 from dataclasses import replace
+from itertools import pairwise
 
 import pytest
 import sqlalchemy as sa
@@ -54,7 +55,7 @@ def test_split_position_is_counted_in_post_split_shares(client: TestClient) -> N
 def test_total_pnl_has_no_discontinuity(client: TestClient) -> None:
     # a mishandled split would jump total P&L by half the split position's value (~7% of the book)
     history = client.get("/api/portfolio").json()["history"]
-    for prev, curr in zip(history, history[1:], strict=False):
+    for prev, curr in pairwise(history):
         assert abs(curr["total_pnl"] - prev["total_pnl"]) < 0.05 * curr["market_value"], curr["date"]
 
 
@@ -100,13 +101,13 @@ def test_chart_bars_are_dates_and_the_split_shows_in_raw_candles(client: TestCli
     assert [f["side"] for f in body["fills"]] == ["buy"]
     assert body["avg_cost"] == pytest.approx(934.5 / 10)  # from the ledger: split-aware, fees included
     closes = [b["close"] for b in body["bars"]]
-    assert max(a / b for a, b in zip(closes, closes[1:], strict=False)) > 1.8  # the raw 2:1 drop
+    assert max(a / b for a, b in pairwise(closes)) > 1.8  # the raw 2:1 drop
 
 
 def test_adjusted_chart_is_continuous_and_has_no_cost_line(client: TestClient) -> None:
     body = client.get(f"/api/chart/{SPLIT_SYMBOL}", params={"adjusted": True}).json()
     closes = [b["close"] for b in body["bars"]]
-    assert max(a / b for a, b in zip(closes, closes[1:], strict=False)) < 1.2
+    assert max(a / b for a, b in pairwise(closes)) < 1.2
     assert body["avg_cost"] is None
 
 
@@ -133,7 +134,9 @@ def test_signals_gate_includes_the_boundary(client: TestClient) -> None:
 def test_last_day_signal_is_pending(client: TestClient) -> None:
     rows = client.get("/api/signals", params={"min_ranking": 0}).json()
     latest = max(rows, key=lambda s: s["signal_date"])
-    assert latest["entry_price"] is None and latest["next_open"] is None and latest["change_pct"] is None
+    assert latest["entry_price"] is None
+    assert latest["next_open"] is None
+    assert latest["change_pct"] is None
     assert any(s["bought"] for s in rows)
 
 
@@ -155,4 +158,6 @@ def test_chart_survives_a_ledger_error_without_its_cost_line(demo_engine: sa.Eng
     with TestClient(create_app(settings)) as c:
         response = c.get(f"/api/chart/{SPLIT_SYMBOL}")
     assert response.status_code == 200
-    assert response.json()["fills"] and response.json()["avg_cost"] is None
+    body = response.json()
+    assert body["fills"]
+    assert body["avg_cost"] is None

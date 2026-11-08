@@ -6,7 +6,9 @@
 #   1. Checks, before anything changes: secrets.env readable with a BIND_HOST, the tag exists,
 #      the checkout has no local changes.
 #   2. Downloads the release's web-dist.tgz into web/releases/<tag>/ (via a hidden temp dir, so
-#      a half-extracted release never has that name). A missing asset stops here.
+#      a half-extracted release never has that name): the public download URL first, then, if
+#      GitHub keeps failing that one, the same asset through the REST API. A missing release or
+#      asset stops here, with a message naming which.
 #   3. Checks out the tag and syncs the API's dependencies.
 #   4. Points the web/dist symlink at the new release (one rename(2), so there is never a moment
 #      without a web/dist) and restarts the service straight after, so new frontend and old API
@@ -78,6 +80,51 @@ rollback() {
   echo "deploy: rollback did not come up healthy either; see: journalctl --user -u turtle-web -n 50" >&2
 }
 
+# Download the release's web-dist.tgz to the file $2. Both routes are public: no gh login on the VPS.
+#
+# To a file, never `curl | tar`: when curl retries after a partial transfer it writes the body
+# again, and a pipe would hand tar the broken first attempt followed by the second.
+#
+# Every attempt has a hard time limit (--max-time), so a transfer that stalls mid-way fails and
+# retries instead of hanging the deploy. Retries back off 1, 2, 4, 8, 16 s (no fixed
+# --retry-delay, which would turn that off) and include refused connections. Worst case for the
+# whole function is about 5 minutes; a missing release or asset fails in seconds with a message
+# that says so.
+download_asset() {
+  local tag="$1" out="$2" release_json api_url
+  local transfer=(--retry 5 --retry-connrefused --retry-max-time 120 --connect-timeout 10 --max-time 60)
+  local lookup=(--retry 3 --retry-connrefused --retry-max-time 30 --connect-timeout 10 --max-time 15)
+
+  # 1. The release download URL. github.com has been seen answering 504 for hours on some assets
+  #    while serving others, so a failure here is not the end.
+  if curl -fsSL "${transfer[@]}" -o "$out" "https://github.com/jaaknt/turtle-web/releases/download/$tag/web-dist.tgz"; then
+    return 0
+  fi
+  echo "deploy: the release download URL failed; trying the GitHub API" >&2
+
+  # 2. The same asset through the REST API: look up its API URL by tag, then fetch the bytes.
+  #    Unauthenticated, which allows 60 API requests an hour: plenty for a deploy.
+  if ! release_json="$(curl -fsSL "${lookup[@]}" -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/jaaknt/turtle-web/releases/tags/$tag")"; then
+    echo "deploy: no GitHub release for $tag, or the GitHub API is unreachable" >&2
+    return 1
+  fi
+  # JSON through uv's Python (uv is already required, for `uv sync`), not a system python3.
+  api_url="$(printf '%s' "$release_json" | uv run --no-project --quiet python -c '
+import json, sys
+tag = sys.argv[1]
+try:
+    assets = json.load(sys.stdin)["assets"]
+except (ValueError, KeyError, TypeError):
+    sys.exit(f"deploy: unexpected GitHub API response for the {tag} release")
+urls = [a["url"] for a in assets if a.get("name") == "web-dist.tgz"]
+if not urls:
+    sys.exit(f"deploy: the {tag} release has no web-dist.tgz (did release.yml finish?)")
+print(urls[0])
+' "$tag")" || return 1
+  curl -fsSL "${transfer[@]}" -H "Accept: application/octet-stream" -o "$out" "$api_url"
+}
+
 prune_releases() {
   local name kept=0
   # Newest first by modification time; the active release always survives, plus the next
@@ -115,10 +162,14 @@ main() {
   # 2. The frontend. A release asset never changes, so a tag already on disk is reused.
   mkdir -p web/releases
   if [ ! -f "web/releases/$tag/index.html" ]; then
+    # Leftovers of a deploy that was killed outright (SIGKILL, reboot), whose EXIT trap never ran.
+    # One deploy runs at a time, so anything .incoming-* now is stale.
+    rm -rf web/releases/.incoming-*
     tmp="$(mktemp -d web/releases/.incoming-XXXXXX)"
-    trap 'rm -rf "$tmp"' EXIT
-    # Public asset, so plain curl: no gh login on the VPS.
-    curl -fsSL --retry 3 "https://github.com/jaaknt/turtle-web/releases/download/$tag/web-dist.tgz" | tar -xz -C "$tmp"
+    trap 'rm -rf "$tmp" "$tmp.tgz"' EXIT
+    download_asset "$tag" "$tmp.tgz" || die "could not download web-dist.tgz for $tag"
+    tar -xzf "$tmp.tgz" -C "$tmp"
+    rm -f "$tmp.tgz" # not needed past this point; do not hold it through the restart
     [ -f "$tmp/index.html" ] || die "web-dist.tgz for $tag has no index.html"
     chmod 755 "$tmp" # mktemp makes it 0700
     rm -rf "web/releases/$tag"

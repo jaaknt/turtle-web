@@ -1203,10 +1203,12 @@ would delete the unit file that `systemctl` links to.
 
 Every later release is `~/turtle-web/deploy/deploy.sh <tag>`. **Its header comment is the
 reference** for what it does and guarantees; in short: every check and the download happen before
-anything changes, each release's frontend lives in `web/releases/<tag>/` with `web/dist` a symlink
-switched by one `rename(2)` right before the restart, a failed `uv sync`, restart or health check
-rolls back to the previous commit and release, and the newest three releases are kept.
-`TURTLE_WEB_STATIC_DIR` stays `.../web/dist`; Starlette resolves the link on every request.
+anything changes, and the download falls back to the GitHub REST API when the release URL keeps
+failing (as it did, with 504s, for `v0.3.0`). Each release's frontend lives in
+`web/releases/<tag>/`, with `web/dist` a symlink switched by one `rename(2)` right before the
+restart. A failed `uv sync`, restart or health check rolls back to the previous commit and
+release, and the newest three releases are kept. `TURTLE_WEB_STATIC_DIR` stays `.../web/dist`;
+Starlette resolves the link on every request.
 
 A tab left open across a deploy asks for chunks that no longer exist. The API answers missing
 `/assets/*` with a real 404 (not the SPA's `index.html`), and `web/src/staleChunks.ts` turns the

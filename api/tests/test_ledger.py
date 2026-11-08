@@ -172,6 +172,7 @@ def test_weekend_fill_lands_on_the_next_trading_day_without_a_weekend_point() ->
     assert [p.date for p in ledger.history] == [day(n) for n in weekdays]
     assert ledger.history[4].market_value == pytest.approx(1000)  # Friday: not yet
     assert ledger.history[5].market_value == pytest.approx(1500)  # Monday: applied
+    assert [p.bought for p in ledger.history] == pytest.approx([1000, 0, 0, 0, 0, 500, 0])  # its cash on Monday only
 
 
 def test_fractional_shares_sold_in_full_leave_no_ghost_position() -> None:
@@ -290,3 +291,48 @@ def test_day_change_matches_the_last_two_history_points_across_a_gap() -> None:
     ledger = build([buy(0, "A", 10, 100)], a + closes(BENCH, [10] * 4), [BENCH])
     prev, last = ledger.history[-2:]
     assert ledger.positions[0].day_change_pct == pytest.approx(last.market_value / prev.market_value - 1)
+
+
+def test_a_day_with_a_buy_and_a_sell_records_both_cash_flows() -> None:
+    fills = [buy(0, "A", 10, 100, fee=1), buy(1, "B", 5, 20, fee=0.5), sell(1, "A", 4, 110, fee=1)]
+    data = closes("A", [100, 110]) + closes("B", [20, 20]) + closes(BENCH, [10, 10])
+    first, second = build(fills, data, [BENCH]).history
+    assert (first.bought, first.sold) == pytest.approx((1001, 0))
+    assert (second.bought, second.sold) == pytest.approx((100.5, 4 * 110 - 1))
+
+
+def test_bought_summed_over_history_is_the_total_buy_cost() -> None:
+    fills = [buy(0, "A", 10, 100, fee=1), buy(2, "A", 5, 105, fee=1), buy(3, "B", 2, 50)]
+    data = closes("A", [100, 101, 105, 106]) + closes("B", [50] * 4) + closes(BENCH, [10] * 4)
+    ledger = build(fills, data, [BENCH])
+    assert sum(p.bought for p in ledger.history) == pytest.approx(1001 + 526 + 100)
+    assert all(p.sold == 0 for p in ledger.history)
+
+
+def test_benchmark_close_is_each_benchmarks_forward_filled_adjusted_close() -> None:
+    # QQQ has no bar on day 1: its close forward-fills
+    data = closes("A", [100] * 2) + closes(BENCH, [10, 11], [5, 5.5]) + closes("QQQ.US", [20], [19])
+    history = build([buy(0, "A", 10, 100)], data, [BENCH, "QQQ.US"]).history
+    assert [p.benchmark_close for p in history] == [{BENCH: 5, "QQQ.US": 19}, {BENCH: 5.5, "QQQ.US": 19}]
+    assert list(history[0].benchmark_close) == [BENCH, "QQQ.US"]
+
+
+def test_tax_adds_to_a_buys_cost_and_comes_off_a_sells_proceeds() -> None:
+    fills = [Fill(day(0), "A", "buy", 10, 100, 1, 2), Fill(day(1), "A", "sell", 10, 110, 1, 3)]
+    first, second = build(fills, closes("A", [100, 110]) + closes(BENCH, [10, 10]), [BENCH]).history
+    assert first.bought == pytest.approx(1000 + 1 + 2)
+    assert second.sold == pytest.approx(1100 - 1 - 3)
+
+
+def test_a_fill_only_last_day_has_its_cash_and_the_previous_benchmark_close() -> None:
+    # day 2 is in the calendar only for its fill, imported before that day's bars
+    fills = [buy(0, "A", 10, 100), buy(2, "A", 5, 110)]
+    history = build(fills, closes("A", [100, 110]) + closes(BENCH, [10, 11]), [BENCH]).history
+    assert [p.date for p in history] == [day(0), day(1), day(2)]
+    assert history[-1].bought == pytest.approx(550)
+    assert history[-1].benchmark_close == history[-2].benchmark_close == {BENCH: 11}
+
+
+def test_selling_a_symbol_not_held_raises_naming_it_even_for_zero_shares() -> None:
+    with pytest.raises(LedgerError, match=re.escape("sell of 0 B.US")):
+        build([buy(0, "A", 10, 100), sell(0, "B.US", 0, 50)], closes("A", [100]) + closes("B.US", [50]) + closes(BENCH, [10]), [BENCH])

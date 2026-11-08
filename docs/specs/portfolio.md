@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Planned, not started. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Step 1 is done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -127,6 +127,8 @@ Beta and correlation are filled in for the portfolio column only.
 
 ### Step 1 — Cash flows and benchmark prices in the ledger
 
+**Done.** Implemented in `turtle-web` 2026-11-08.
+
 `ledger.Point` gains what the return model needs and the ledger already has in hand:
 
 ```python
@@ -138,8 +140,9 @@ class Point:
     benchmark_close: dict[str, float]  # each benchmark's forward-filled adjusted close, configured order
 ```
 
-- `_apply` returns the fill's cash amount, which it already computes, and the calendar loop
-  sums it per day into `bought` or `sold`.
+- `_apply` returns the fill's cash as `(bought, sold)`, one of them 0, from amounts it already
+  computes. The calendar loop adds the pairs up per day, so the buy/sell branch lives only in
+  `_apply`.
 - `_point` reads `benchmark_close` from `last`, which already holds every benchmark.
 - `routes._point` builds `HistoryPoint` with `from_attributes`, which reads only the fields
   `HistoryPoint` declares. `/api/portfolio` does not change, and neither do its generated types.

@@ -111,8 +111,9 @@ the result stays correct.
   Lightyear pays them out as cash that the importer never sees. Total P&L therefore tracks the
   broker's position value plus dividends received, so a per-position value reads slightly above
   Lightyear's.
-- **The Shares column shows quantity as traded.** After a split, Lightyear shows more shares
-  than this page does. Market value is still correct.
+- **Shares follow the broker.** A split while a position is held rescales its share count
+  (detected from the bars, as there is no split table), so the Shares column matches Lightyear's.
+  Market value never depends on it.
 - **Sell semantics are unverified.** When the first sell lands, check the proceeds formula
   against the statement's `gross_amount`/`net_amount` and add that row as a ledger test fixture.
 - **Prices are forward-filled.** A symbol with no bar on a given day (halt, delisting) keeps its
@@ -1043,7 +1044,9 @@ a single `<canvas>` set).
   a warning badge.
 - **Two `LineChart`s:** "Holdings value vs cost basis" (`market_value`, `cost_basis`) and
   "P&L vs benchmark" (`total_pnl`, `benchmark_pnl`).
-- **Footer:** the caveats from [The P&L model](#the-pl-model), verbatim.
+- **Footer:** the caveats from [The P&L model](#the-pl-model), in `PnlCaveats.vue`; keep the two
+  in step. The sell caveat drops its note to developers (add a ledger fixture), which is not for
+  the page.
 
 ```vue
 <DataTable :value="portfolio.positions" sortField="unrealized_pct" :sortOrder="-1" size="small" stripedRows>

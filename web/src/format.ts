@@ -36,3 +36,16 @@ export function pnlClass(v: number | null | undefined): '' | 'pos' | 'neg' {
   if (v == null || v === 0) return ''
   return v > 0 ? 'pos' : 'neg'
 }
+
+/** 'YYYY-MM-DD' from an ISO date or datetime string, as the API sends them. */
+export function day(v: string | null | undefined): string {
+  return v == null ? DASH : v.slice(0, 10)
+}
+
+/** The middle value, or null for an empty list. */
+export function median(values: number[]): number | null {
+  if (values.length === 0) return null
+  const s = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2
+}

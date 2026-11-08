@@ -43,10 +43,18 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// ~5,600 rows that change at most nightly: fetch once per page load, shared by every mount.
+// A failed request is dropped from the cache so the next caller retries.
+let symbolsOnce: Promise<SymbolRow[]> | null = null
+
 export const api = {
   portfolio: () => get<Portfolio>('/portfolio'),
   transactions: () => get<Transaction[]>('/transactions'),
-  symbols: () => get<SymbolRow[]>('/symbols'),
+  symbols: () =>
+    (symbolsOnce ??= get<SymbolRow[]>('/symbols').catch((e: unknown) => {
+      symbolsOnce = null
+      throw e
+    })),
   chart: (symbol: string, adjusted = false) =>
     get<ChartData>(`/chart/${encodeURIComponent(symbol)}?adjusted=${adjusted}`),
   signals: (days = 90, minRanking = 44) =>

@@ -4,6 +4,8 @@
   --bg: #ffffff;
   --border: #d0d7de;
   --grid: #eef1f4;
+  --warn-bg: #fff3d6;
+  --warn-fg: #8a5300;
   --accent: #0969da;
   --pos: #1a7f37;
   --neg: #cf222e;
@@ -21,6 +23,8 @@
     --bg: #0d1117;
     --border: #30363d;
     --grid: #1c2128;
+    --warn-bg: #3d2e00;
+    --warn-fg: #f2cc60;
     --accent: #4493f8;
     --pos: #3fb950;
     --neg: #f85149;
@@ -76,4 +80,85 @@ main {
 
 .error {
   color: var(--neg);
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Page control bars (filters, pickers). Scoped to .controls so PrimeVue's own inputs keep their theme. */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.controls input,
+.controls select,
+.controls button {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+}
+
+.controls button {
+  cursor: pointer;
+}
+
+/* Content from the previous request, shown dimmed while the next one loads. */
+.stale {
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+/* Numeric table columns: right-aligned, digits lined up. */
+.num,
+.p-datatable .p-datatable-tbody > tr > td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+th.num .p-datatable-column-header-content {
+  justify-content: flex-end;
+}
+
+/* Tables scroll sideways on narrow screens; wrapping a name over three lines reads worse. */
+.p-datatable .p-datatable-tbody > tr > td {
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  margin-right: 0.35rem;
+}
+.badge.warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+/* Signals you took, so they stand out from the ones you passed on. */
+.p-datatable .p-datatable-tbody > tr.bought,
+.p-datatable.p-datatable-striped .p-datatable-tbody > tr.bought.p-row-odd {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.page-footer {
+  margin-top: 2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.page-footer ul {
+  padding-left: 1.2rem;
 }

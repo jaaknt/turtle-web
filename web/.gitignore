@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# deploy/deploy.sh on the VPS: one directory per release, web/dist a symlink to the active one
+releases
+.dist-next

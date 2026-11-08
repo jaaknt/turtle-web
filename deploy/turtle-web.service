@@ -1,0 +1,26 @@
+# turtle-web: the read-only dashboard, as a systemd *user* service.
+# Install once (links this file, so `git checkout <tag>` + daemon-reload picks up changes):
+#   systemctl --user enable ~/turtle-web/deploy/turtle-web.service
+# deploy/deploy.sh then starts and restarts it.
+
+[Unit]
+Description=turtle-web (read-only dashboard)
+# A user manager cannot order against system units such as tailscaled.service, so no After= on
+# it would take effect. If the Tailscale IP is not up yet at boot, uvicorn fails to bind and
+# Restart= below retries every 10 s until it is. StartLimitIntervalSec=0 makes that retry
+# unlimited on purpose, rather than relying on RestartSec=10 staying clear of the default
+# start limit (5 starts in 10 s).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/turtle-web/api
+EnvironmentFile=%h/.config/turtle-web/secrets.env
+# --frozen --no-sync: run what deploy.sh installed. A plain `uv run` would sync the dev group
+# back in and need PyPI reachable at boot.
+ExecStart=%h/.local/bin/uv run --frozen --no-sync uvicorn --factory turtleweb.main:create_app --host ${BIND_HOST} --port 8080
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

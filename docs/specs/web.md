@@ -1168,13 +1168,20 @@ job. A tag produces a release with `web-dist.tgz` attached.
 
 ### Step 11 — Deploy to the VPS
 
-One-time setup:
+The files are [`deploy/deploy.sh`](../../deploy/deploy.sh) and
+[`deploy/turtle-web.service`](../../deploy/turtle-web.service), a systemd **user** service modelled on
+turtle-backtest's `deploy/eodhd-download-daily.service`.
+
+One-time setup, as the deploying user:
 
 ```bash
 git clone https://github.com/jaaknt/turtle-web.git ~/turtle-web
-cd ~/turtle-web && uv sync --project api --frozen --no-dev
 mkdir -p ~/.config/turtle-web
-loginctl enable-linger "$USER"
+# write ~/.config/turtle-web/secrets.env (below), then:
+chmod 600 ~/.config/turtle-web/secrets.env
+loginctl enable-linger "$USER"   # user services start at boot, without an SSH login
+systemctl --user enable ~/turtle-web/deploy/turtle-web.service   # links the unit; does not start it
+~/turtle-web/deploy/deploy.sh v0.2.0   # first deploy: sync, web/dist, start
 ```
 
 `~/.config/turtle-web/secrets.env`:
@@ -1189,41 +1196,19 @@ Use **absolute paths** here. systemd expands specifiers like `%h` in unit direct
 inside an `EnvironmentFile`. A literal `%h/...` would reach `StaticFiles`, which raises on a
 missing directory, and the unit would crash-loop.
 
-`deploy/deploy.sh` covers every later release:
+The first deploy needs a tag that contains `deploy/` (`v0.2.0` or later): checking out `v0.1.0`
+would delete the unit file that `systemctl` links to.
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-tag="${1:?usage: deploy.sh <tag>}"
-cd ~/turtle-web
-git fetch --tags && git checkout "$tag"
-uv sync --project api --frozen --no-dev
-# Download into a temp dir first: a failed download aborts here (pipefail) with the old
-# web/dist still in place. Public release asset, so plain curl — no gh login on the VPS.
-tmp="$(mktemp -d)"
-curl -fsSL "https://github.com/jaaknt/turtle-web/releases/download/$tag/web-dist.tgz" | tar -xz -C "$tmp"
-rm -rf web/dist && mv "$tmp" web/dist
-systemctl --user restart turtle-web
-```
+Every later release is `~/turtle-web/deploy/deploy.sh <tag>`. **Its header comment is the
+reference** for what it does and guarantees; in short: every check and the download happen before
+anything changes, each release's frontend lives in `web/releases/<tag>/` with `web/dist` a symlink
+switched by one `rename(2)` right before the restart, a failed `uv sync`, restart or health check
+rolls back to the previous commit and release, and the newest three releases are kept.
+`TURTLE_WEB_STATIC_DIR` stays `.../web/dist`; Starlette resolves the link on every request.
 
-`deploy/turtle-web.service`, modelled on turtle-backtest's `deploy/eodhd-download-daily.service`:
-
-```ini
-[Unit]
-Description=turtle-web (read-only dashboard)
-After=network-online.target tailscaled.service
-
-[Service]
-Type=simple
-WorkingDirectory=%h/turtle-web/api
-EnvironmentFile=%h/.config/turtle-web/secrets.env
-ExecStart=%h/.local/bin/uv run --frozen --no-sync uvicorn --factory turtleweb.main:create_app --host ${BIND_HOST} --port 8080
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=default.target
-```
+A tab left open across a deploy asks for chunks that no longer exist. The API answers missing
+`/assets/*` with a real 404 (not the SPA's `index.html`), and `web/src/staleChunks.ts` turns the
+failed lazy import into one reload of the page the user was opening.
 
 - **`--frozen --no-sync` on `uv run`.** Plain `uv run` syncs the default groups, dev included,
   before it starts. That would undo the `--no-dev` sync and need PyPI reachable at boot.
@@ -1234,6 +1219,10 @@ WantedBy=default.target
 - **Bind to the Tailscale IP, never `0.0.0.0`.** The Hetzner firewall allows inbound SSH from one
   IP only (turtle-backtest's `docs/implementation.md`). Binding explicitly means a later firewall change can never
   expose the site.
+- **No `After=tailscaled.service`.** A user manager cannot order against system units, so that
+  line would do nothing. If the Tailscale IP is not up at boot, uvicorn fails to bind and
+  `Restart=on-failure` retries every 10 s until it is, with `StartLimitIntervalSec=0` making the
+  retries unlimited on purpose; item 8 below is the test.
 - **`WantedBy=default.target`, not `timers.target`.** This is a persistent service, unlike every
   `Type=oneshot` unit in `turtle-backtest/deploy/`.
 - **Slowness is probably Tailscale relaying, not the app.** With all inbound UDP blocked,

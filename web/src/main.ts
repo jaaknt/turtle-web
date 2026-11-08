@@ -3,7 +3,10 @@ import PrimeVue from 'primevue/config'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { router } from './router'
+import { reloadOnStaleChunks } from './staleChunks'
 import './style.css'
+
+reloadOnStaleChunks(router)
 
 createApp(App)
   .use(router)

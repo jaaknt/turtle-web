@@ -16,12 +16,18 @@ from turtleweb.ledger import LedgerError
 from turtleweb.routes import router
 from turtleweb.settings import Settings
 
+# Missing paths under these stay 404. api/: an unknown endpoint is an error, not a page.
+# assets/: after a deploy, a tab opened on the previous release asks for chunks that are gone; a
+# real 404 makes its dynamic import fail cleanly, and the frontend reloads (src/staleChunks.ts),
+# where index.html served as JavaScript would fail with a confusing MIME-type error instead.
+_NO_FALLBACK = ("api/", "assets/")
+
 
 class SpaStaticFiles(StaticFiles):
-    """Serve web/dist; unknown non-API paths get index.html so deep links like /chart/AAPL.US work."""
+    """Serve web/dist; unknown page paths get index.html so deep links like /chart/AAPL.US work."""
 
     async def get_response(self, path: str, scope: Scope) -> Response:
-        """Return the file at `path`, or index.html when it is missing and not under api/.
+        """Return the file at `path`, or index.html when it is missing and not under api/ or assets/.
 
         Args:
             path: Request path relative to the mount, without a leading slash.
@@ -30,7 +36,7 @@ class SpaStaticFiles(StaticFiles):
         try:
             return await super().get_response(path, scope)
         except HTTPException as exc:
-            if exc.status_code != 404 or path.startswith("api/"):
+            if exc.status_code != 404 or path.startswith(_NO_FALLBACK):
                 raise
             return await super().get_response("index.html", scope)
 

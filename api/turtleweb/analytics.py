@@ -16,8 +16,8 @@ from itertools import accumulate, groupby, pairwise
 from turtleweb.ledger import Ledger, Point
 
 # quantstats' conventions throughout (risk-free rate 0, 252 periods a year, sample standard
-# deviation), so these figures match turtle-backtest's reports. Step 4's
-# tests/test_analytics_oracle.py is to hold them to quantstats' own numbers.
+# deviation), so these figures match turtle-backtest's reports; tests/test_analytics_oracle.py
+# holds them to quantstats' own numbers.
 PERIODS = 252
 # A drawdown shallower than this is float noise: a recovery to the exact old peak can compute as
 # peak * (1 - 2e-16), which would otherwise keep the drawdown open. quantstats compares with 0.

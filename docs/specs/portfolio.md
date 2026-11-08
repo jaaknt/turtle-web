@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Steps 1–3 are done. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Steps 1–4 are done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -230,10 +230,14 @@ series with no down day (Sortino `None`).
 
 ### Step 4 — Validate against quantstats
 
+**Done.** Implemented in `turtle-web` 2026-11-08. Every metric, monthly and yearly return and
+drawdown period matched quantstats 0.0.86 to `1e-9` on the first run, on the oracle and on the
+demo database alike.
+
 The hand-written metrics must give quantstats' numbers. That is checked twice: in CI on a
 fixed synthetic series, and by hand on the live portfolio.
 
-**4a. A committed oracle, checked in CI.** `api/tests/make_analytics_oracle.py` builds a fixed,
+**4a. A committed oracle, checked in CI.** `api/scripts/make_analytics_oracle.py` builds a fixed,
 seeded series of about 300 business days of synthetic returns, with a drawdown that recovers, one
 that does not, and some zero days. It runs every quantstats function in the
 [metric table](#metric-definitions) over that series and writes inputs and outputs to
@@ -241,11 +245,16 @@ that does not, and some zero days. It runs every quantstats function in the
 throwaway environment, so it never enters `uv.lock`:
 
 ```bash
-uv run --no-project --with quantstats==0.0.86 python api/tests/make_analytics_oracle.py
+uv run --no-project --python 3.14 --with quantstats==0.0.86 python api/scripts/make_analytics_oracle.py
 ```
 
 Pin the same quantstats version turtle-backtest uses; regenerate when either side upgrades it.
-The JSON holds synthetic numbers only, never real data, per the README's rule.
+The JSON holds synthetic numbers only, never real data, per the README's rule. The series is
+seeded, so regenerating writes byte-identical JSON unless quantstats' numbers change, and the
+script refuses to write a series without three recovered drawdowns and an open one whose valley
+comes before its end. The script
+lives in `api/scripts/`, not `api/tests/`: mypy checks the tests, and quantstats is not installed
+there.
 
 `api/tests/test_analytics_oracle.py` loads the JSON, runs `analytics.metrics`, `monthly`,
 `yearly` and `drawdown_periods` over the same inputs, and compares each value with
@@ -263,25 +272,31 @@ oracle series avoids them:
 Any new difference goes into the metric table and a one-line comment in the code, so that the
 next reader does not "fix" it back.
 
-**4b. The live portfolio, checked by hand.** `api/scripts/compare_quantstats.py` fetches
-`/api/analytics?daily=true` from a running API (the demo database or, over Tailscale, the VPS),
-builds the same pandas series, and prints each metric side by side with quantstats' value and
-the difference. With `--html`, it also writes `qs.reports.html(returns, benchmark)` to a file
-outside the repository, to compare the charts by eye with the page.
+**4b. The real portfolio, checked by hand.** `api/scripts/compare_quantstats.py` builds the
+ledger from the database the API is configured for (`TURTLE_WEB_*` variables or `api/.env`),
+through the same loader as `/api/portfolio` (`db.fetch` and `db.replay`), and prints
+every metric beside quantstats' value. It reuses the oracle script's quantstats calls. With
+`--html`, it also writes quantstats' tear sheet, to compare the charts by eye with the page. Run
+it from `api/`, with quantstats added to the project's environment for that run only:
 
 ```bash
-uv run --no-project --with quantstats==0.0.86 --with httpx python api/scripts/compare_quantstats.py \
-  --url http://localhost:8000 --html /tmp/turtle-web-tearsheet.html
+uv run --with quantstats==0.0.86 python scripts/compare_quantstats.py --html /tmp/turtle-web-tearsheet.html
 ```
 
-It exits non-zero if any metric differs by more than `1e-9` relative. Run it after the first
-deploy of this page and after any change to `analytics.py` or the ledger. It is not part of CI:
-it needs a live API, and the oracle already covers the code.
+It exits non-zero if any metric differs by more than `1e-9` relative. A ratio left empty
+(`None`) matches quantstats' NaN, 0 or ±inf. When the first day is a loss, a different longest
+drawdown is reported as known, not as a failure: quantstats misses a drawdown that starts on
+day one. Run it on the demo
+database and on the VPS (from the deployed checkout) after any change to `analytics.py` or the
+ledger. It is not part of CI: it needs a database, and the oracle already covers the formulas.
+It reads the database directly rather than through `/api/analytics` so that it needs no running
+API; Step 5's endpoint adds only serialisation on top.
 
 What 4b catches that 4a cannot: an error in the return series itself (Steps 1 and 2). The
-oracle checks the metrics on returns it is given. It cannot tell whether the API derived those
-returns correctly. For that, also check one figure against the Portfolio page by hand: while there
-has been only one buy, cumulative return equals total P&L divided by cost basis.
+oracle checks the metrics on returns it is given. It cannot tell whether those returns were
+derived correctly from your transactions. For that, also check one figure against the Portfolio
+page by hand: while there has been only one buy, cumulative return equals total P&L divided by
+cost basis.
 
 ### Step 5 — Endpoint and response models
 
@@ -323,7 +338,6 @@ class CurvePoint(BaseModel):
     date: date
     cumulative: dict[str, float]  # by series symbol
     drawdown: dict[str, float]
-    daily: dict[str, float] | None  # each series' daily return; only with ?daily=true
 
 
 class Analytics(BaseModel):
@@ -337,8 +351,6 @@ class Analytics(BaseModel):
     histogram_monthly: list[Bin]  # the portfolio's
     histogram_daily: list[Bin]
 ```
-
-`?daily=true` adds the raw daily returns for Step 4b. The page does not ask for them.
 
 Route tests against the demo database: the portfolio comes first and the benchmarks follow in
 configured order; `curve` has one point per series day; the demo's 2:1 split leaves no jump in
@@ -395,7 +407,7 @@ Empty state before the first fill, as on the Portfolio page: a sentence, not a p
 2. `uv run pytest --cov` shows `analytics.py` at 100%, as `ledger.py` is.
 3. `compare_quantstats.py` against the demo database reports no differences, and its tear sheet
    matches the page's charts by eye.
-4. The same against the live API, once deployed.
+4. The same on the VPS, from the deployed checkout, against the live database.
 5. While the live portfolio has a single buy and no sells, cumulative return on this page
    equals total P&L divided by cost basis on the Portfolio page.
 6. The benchmark's cumulative return equals `adj_close(end) / adj_close(start) − 1` from a

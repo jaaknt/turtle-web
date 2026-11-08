@@ -13,7 +13,7 @@ from typing import Annotated, Any
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from turtleweb import ledger, sql
+from turtleweb import db, ledger, sql
 from turtleweb.models import Bar, ChartData, ChartFill, HistoryPoint, Portfolio, Position, SignalRow, Symbol, Transaction
 from turtleweb.settings import Settings
 
@@ -22,7 +22,6 @@ router = APIRouter()
 
 CACHE_FOR_AN_HOUR = "max-age=3600"  # the symbol list changes once a night
 SYMBOLS_TTL_SECONDS = 3600  # matches the max-age above
-LOOKBACK_DAYS = 7  # closes before the first fill, so a fill on a day without a bar has a price
 CHART_YEARS = 3
 
 
@@ -37,8 +36,7 @@ def _settings(request: Request) -> Settings:
 
 
 def _rows(request: Request, statement: sa.TextClause, **params: Any) -> list[sa.RowMapping]:
-    with _engine(request).connect() as conn:
-        return list(conn.execute(statement, params).mappings())
+    return db.fetch(_engine(request), statement, **params)
 
 
 def _transactions(request: Request) -> list[sa.RowMapping]:
@@ -46,18 +44,7 @@ def _transactions(request: Request) -> list[sa.RowMapping]:
 
 
 def _ledger(request: Request, transactions: list[sa.RowMapping]) -> ledger.Ledger:
-    """Replay every transaction over the closes it needs."""
-    fills = [
-        ledger.Fill(t["transacted_at"].date(), t["symbol"], t["side"], t["quantity"], t["price"], t["fee"], t["tax"]) for t in transactions
-    ]
-    benchmarks = _settings(request).benchmark_symbols
-    if not fills:
-        return ledger.build([], [], benchmarks)
-    symbols = sorted({f.symbol for f in fills} | set(benchmarks))
-    start = min(f.date for f in fills) - timedelta(days=LOOKBACK_DAYS)
-    rows = _rows(request, sql.CLOSES, symbols=symbols, start=start)
-    closes = [ledger.Close(r["symbol"], r["date"], r["close"], r["adjusted_close"]) for r in rows]
-    return ledger.build(fills, closes, benchmarks)
+    return db.replay(_engine(request), transactions, _settings(request).benchmark_symbols)
 
 
 @dataclass(frozen=True)

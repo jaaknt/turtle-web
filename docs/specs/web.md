@@ -1141,6 +1141,28 @@ jobs:
 `.github/workflows/release.yml`, on a `v*` tag: build `web/` and attach it to a GitHub Release
 as `web-dist.tgz` (`tar -czf web-dist.tgz -C web/dist .` then `gh release create "$GITHUB_REF_NAME" web-dist.tgz`).
 
+The shipped workflows differ from the sketch above in these ways:
+
+- **Actions are pinned to commit SHAs** with the version in a comment (`checkout` v7.0.1,
+  `setup-node` v7.1.0, `setup-uv` v10.3.3 at the time of writing); Dependabot's
+  `github-actions` updates move both. `setup-uv` has published no floating major tag since v8, so
+  `@v10` does not even resolve.
+- **Every uv invocation is locked** (`UV_LOCKED=1` for the whole workflow): `api/uv.lock` covers the
+  API and `gen:api`, and `db/seed_demo.py.lock` (from `uv lock --script db/seed_demo.py`) covers the
+  seed script's inline dependencies. A lock out of step with what it locks fails CI rather than
+  re-resolving on the runner. Re-run `uv lock --script` after editing the script's `dependencies`;
+  Dependabot does not track that lock.
+- `psql` runs with `-v ON_ERROR_STOP=1`, so a broken `schema.sql` fails the step.
+- `ci.yml` runs on pushes to `main` and on pull requests, with `contents: read` and in-progress PR
+  runs cancelled by newer pushes.
+- The `web` job runs `npm run build` only: it starts with `vue-tsc -b`, so a separate
+  `type-check` step would check everything twice.
+- **`release.yml` gates the release:** it fails unless the tagged commit is on `main`, then runs
+  the whole of `ci.yml` (as a reusable workflow) on that commit, and only then builds and runs
+  `gh release create --verify-tag --generate-notes`. Only that last job gets `contents: write`, and
+  it builds without the npm cache, so a cache saved by a less-trusted run never reaches a job
+  holding a write token.
+
 **Verify:** a PR that changes a response model without re-running `gen:api` fails the `web`
 job. A tag produces a release with `web-dist.tgz` attached.
 

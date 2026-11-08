@@ -1,0 +1,50 @@
+name: Release
+
+# On a v* tag: check the tag is on main, run the full CI suite on the tagged commit, then build
+# web/ and attach it to a GitHub Release as web-dist.tgz, which the VPS deploy downloads
+# (Step 11). The API ships from the tagged source, not from this artifact.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read # widened only for the job that publishes
+
+jobs:
+  on-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0 }
+      - name: The tagged commit is on main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main"
+            exit 1
+          }
+
+  ci:
+    needs: on-main
+    uses: ./.github/workflows/ci.yml
+
+  web-dist:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload its asset
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # No `cache: npm`: this job holds a write token, so it never restores a cache that a
+      # less-trusted run could have saved. npm ci installs from package-lock.json.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: Build
+        working-directory: web
+        run: npm ci && npm run build
+      - name: Package
+        run: tar -czf web-dist.tgz -C web/dist .
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" web-dist.tgz --verify-tag --generate-notes --title "$GITHUB_REF_NAME"

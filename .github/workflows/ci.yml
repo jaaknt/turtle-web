@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call: # release.yml runs the whole suite on the tagged commit before publishing
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Actions are pinned to commit SHAs (Dependabot moves them with their version comments).
+# setup-uv publishes no floating major tag since v8, so a SHA is the only stable pin there.
+
+env:
+  # Every uv invocation is locked: api/uv.lock for the API and gen:api, db/seed_demo.py.lock for
+  # the seed script. A lock out of step with its declared dependencies fails, never re-resolves.
+  UV_LOCKED: "1"
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_DB: trading, POSTGRES_PASSWORD: demo }
+        ports: ["5433:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      TURTLE_WEB_DB_PORT: "5433"
+      TURTLE_WEB_DB_USER: postgres
+      TURTLE_WEB_DB_PASSWORD: demo
+      TURTLE_WEB_BENCHMARK_SYMBOL: BENCH.US
+      PGPASSWORD: demo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            api/uv.lock
+            db/seed_demo.py.lock
+      - name: Load the schema
+        run: psql -v ON_ERROR_STOP=1 -h localhost -p 5433 -U postgres -d trading -f db/schema.sql
+      - name: Seed the demo data
+        run: uv run db/seed_demo.py
+      - name: Lint, type-check and test
+        working-directory: api
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+          uv run mypy
+          uv run pytest
+
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - name: Generated API types match the backend
+        # A response-model change without a re-run of `npm run gen:api` fails here.
+        run: npm run gen:api && git diff --exit-code -- openapi.json src/api/schema.d.ts
+      - run: npm run build # starts with vue-tsc -b, the same check as `npm run type-check`

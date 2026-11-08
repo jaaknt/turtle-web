@@ -1,6 +1,6 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Step 1 is done. Each step is marked **Done** as it lands, as in
+> **Status:** Being implemented; Steps 1–2 are done. Each step is marked **Done** as it lands, as in
 > [web.md](web.md). This page extends the dashboard that web.md describes; read its
 > [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
 
@@ -94,6 +94,8 @@ the portfolio earns 0 while the benchmark keeps moving.
   cash, so they do not include cash drag.
 - Annualised figures (CAGR, volatility, Sharpe, Sortino, Calmar) from under a year of data are
   unreliable. The page shows them, flagged, rather than hiding them.
+- Day one is measured differently: the portfolio from fill price to close, each benchmark not at
+  all (bought at that close). Over a short history this one day can move the comparison.
 
 ## Metric definitions
 
@@ -152,6 +154,8 @@ over history equals Σ buy cost; a weekend fill's cash lands on the trading day 
 
 ### Step 2 — The return series
 
+**Done.** Implemented in `turtle-web` 2026-11-08.
+
 `api/turtleweb/analytics.py`, a pure module like the ledger: no database, no FastAPI.
 
 ```python
@@ -161,16 +165,18 @@ class Returns:
     values: list[float]  # one daily return per date
 
 
-def portfolio_returns(history: list[Point], last_bar: date) -> Returns:
-    """Time-weighted daily returns of the holdings, up to and including last_bar."""
+def portfolio_returns(ledger: Ledger) -> Returns:
+    """Time-weighted daily returns of the holdings, up to and including ledger.last_bar."""
 
 
-def benchmark_returns(history: list[Point], symbol: str, last_bar: date) -> Returns:
+def benchmark_returns(ledger: Ledger, symbol: str) -> Returns:
     """Buy and hold of one benchmark over the same days; 0 on the first day."""
 ```
 
-`last_bar` is the first benchmark's last bar date. The ledger knows it as `last_bench_day`;
-expose it on `Ledger` rather than recomputing it from closes.
+`Ledger.last_bar` is the ledger's `last_bench_day`, so analytics never recomputes it from closes.
+A sell within the ledger's share tolerance of the holding sells all of it (fraction exactly 1),
+so a closed position is exactly 0 and a day with nothing held divides by exactly 0, which reads
+as a 0 return.
 
 Tests, each from [the return model](#the-return-model): the first-day return runs from fill
 price to close; a full sell's return runs from the previous close to the sell price; a flat day

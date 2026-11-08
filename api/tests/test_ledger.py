@@ -1,32 +1,11 @@
 """The ledger's rules, one per test, on hand-built fixtures. No database."""
 
 import re
-from datetime import date, timedelta
 
 import pytest
 
+from tests.builders import BENCH, buy, closes, day, sell
 from turtleweb.ledger import Close, Fill, LedgerError, build
-
-BENCH = "BENCH.US"
-D0 = date(2026, 1, 5)  # a Monday
-
-
-def day(n: int) -> date:
-    return D0 + timedelta(days=n)
-
-
-def closes(symbol: str, prices: list[float], adjusted: list[float] | None = None, start: int = 0) -> list[Close]:
-    """One close per day from day(start); adjusted defaults to the raw price."""
-    adjusted = adjusted or prices
-    return [Close(symbol, day(start + i), c, a) for i, (c, a) in enumerate(zip(prices, adjusted, strict=True))]
-
-
-def buy(n: int, symbol: str, quantity: float, price: float, fee: float = 0.0) -> Fill:
-    return Fill(day(n), symbol, "buy", quantity, price, fee, 0.0)
-
-
-def sell(n: int, symbol: str, quantity: float, price: float, fee: float = 0.0) -> Fill:
-    return Fill(day(n), symbol, "sell", quantity, price, fee, 0.0)
 
 
 def test_single_buy_at_a_flat_price_is_down_exactly_the_fee() -> None:
@@ -336,3 +315,12 @@ def test_a_fill_only_last_day_has_its_cash_and_the_previous_benchmark_close() ->
 def test_selling_a_symbol_not_held_raises_naming_it_even_for_zero_shares() -> None:
     with pytest.raises(LedgerError, match=re.escape("sell of 0 B.US")):
         build([buy(0, "A", 10, 100), sell(0, "B.US", 0, 50)], closes("A", [100]) + closes("B.US", [50]) + closes(BENCH, [10]), [BENCH])
+
+
+def test_selling_everything_leaves_exact_zeros_not_float_dust() -> None:
+    # 0.1 + 0.2 shares is 0.30000000000000004: selling 0.3 leaves a fraction of 1e-16 behind
+    fills = [buy(0, "A", 0.1, 100), buy(0, "A", 0.2, 100), sell(1, "A", 0.3, 100)]
+    last = build(fills, closes("A", [100, 100]) + closes(BENCH, [10, 10]), [BENCH]).history[-1]
+    assert (last.market_value, last.cost_basis) == (0.0, 0.0)
+    assert last.realized == pytest.approx(0.0)  # all the cost came out through the sell, none was dropped
+    assert last.benchmark_pnl[BENCH] == pytest.approx(0.0)

@@ -98,6 +98,9 @@ class Ledger:
     # are that day's cash flows, not running totals: sum them over history for those.
     totals: Point | None
     history: list[Point]  # one per calendar day from the first fill
+    # The first benchmark's last bar on or after the first fill; history past it holds only fills
+    # imported before that day's bars. date.min without fills or without such a bar.
+    last_bar: date
 
 
 @dataclass
@@ -147,7 +150,7 @@ def build(fills: list[Fill], closes: list[Close], benchmarks: list[str]) -> Ledg
     if not benchmarks:
         raise ValueError("at least one benchmark is required")
     if not fills:
-        return Ledger(positions=[], totals=None, history=[])
+        return Ledger(positions=[], totals=None, history=[], last_bar=date.min)
     benchmark = benchmarks[0]
 
     fills = sorted(fills, key=lambda f: f.date)
@@ -193,7 +196,7 @@ def build(fills: list[Fill], closes: list[Close], benchmarks: list[str]) -> Ledg
         for symbol, p in sorted(book.items())
         if p.shares > _EPSILON and p.first_buy is not None
     ]
-    return Ledger(positions=positions, totals=history[-1], history=history)
+    return Ledger(positions=positions, totals=history[-1], history=history, last_bar=last_bench_day)
 
 
 def _change(before: Close | None, now: Close) -> float | None:
@@ -238,7 +241,9 @@ def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmarks: list[st
     if fill.side == "sell":
         if p.shares <= _EPSILON or fill.quantity > p.shares + _EPSILON:
             raise LedgerError(f"sell of {fill.quantity} {fill.symbol} on {fill.date} exceeds the {p.shares} held")
-        frac = fill.quantity / p.shares
+        # A sell within _EPSILON of the holding closes it: selling exactly everything realizes all the
+        # cost and benchmark units and leaves exact zeros, where quantity / shares would leave dust.
+        frac = 1.0 if fill.quantity >= p.shares - _EPSILON else fill.quantity / p.shares
         cost_out = p.cost * frac
         proceeds = fill.quantity * fill.price - fill.fee - fill.tax
         p.realized += proceeds - cost_out
@@ -250,7 +255,7 @@ def _apply(fill: Fill, p: _Position, last: dict[str, Close], benchmarks: list[st
         p.cost *= keep
         for bm in benchmarks:
             p.bench_units[bm] *= keep
-        if p.shares <= _EPSILON:
+        if frac == 1.0:
             p.first_buy = None  # a later buy opens a new holding period
         return 0.0, proceeds
     raise LedgerError(f"unknown side {fill.side!r} for {fill.symbol} on {fill.date}")

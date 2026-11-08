@@ -52,6 +52,12 @@ def test_split_position_is_counted_in_post_split_shares(client: TestClient) -> N
     assert position["avg_cost"] == pytest.approx(position["cost_basis"] / 10)
 
 
+def test_every_position_has_a_day_change(client: TestClient) -> None:
+    # every demo position was bought before the last ledger day
+    positions = client.get("/api/portfolio").json()["positions"]
+    assert all(p["day_change_pct"] is not None for p in positions)
+
+
 def test_total_pnl_has_no_discontinuity(client: TestClient) -> None:
     # a mishandled split would jump total P&L by half the split position's value (~7% of the book)
     history = client.get("/api/portfolio").json()["history"]

@@ -63,6 +63,10 @@ class OpenPosition:
     realized: float  # from partial sells so far
     market_value: float
     last_close: Close  # its date shows staleness; close is raw, comparable with fill prices
+    # Change since the previous ledger day, in adjusted closes (a split is not a drop): the move in
+    # this holding's value between the last two history points. 0 for a stale symbol, whose price
+    # is forward-filled; None on the first ledger day.
+    day_change_pct: float | None
     first_buy: date
 
 
@@ -144,10 +148,13 @@ def build(fills: list[Fill], closes: list[Close], benchmarks: list[str]) -> Ledg
     calendar = sorted(bench_days | {f.date for f in fills if f.date > last_bench_day})
 
     last: dict[str, Close] = {}
+    before_last_day: dict[str, Close] = {}  # last as of the previous ledger day
     book: dict[str, _Position] = defaultdict(lambda: _new_position(benchmarks))
     history: list[Point] = []
     next_close = next_fill = 0
     for day in calendar:
+        if day == calendar[-1]:
+            before_last_day = dict(last)
         while next_close < len(closes) and closes[next_close].date <= day:
             c = closes[next_close]
             held = book.get(c.symbol)
@@ -168,12 +175,20 @@ def build(fills: list[Fill], closes: list[Close], benchmarks: list[str]) -> Ledg
             realized=p.realized,
             market_value=p.units * last[symbol].adjusted_close,
             last_close=last[symbol],
+            day_change_pct=_change(before_last_day.get(symbol), last[symbol]),
             first_buy=p.first_buy,
         )
         for symbol, p in sorted(book.items())
         if p.shares > _EPSILON and p.first_buy is not None
     ]
     return Ledger(positions=positions, totals=history[-1], history=history)
+
+
+def _change(before: Close | None, now: Close) -> float | None:
+    """now vs before as a fraction, in adjusted closes (CLOSES returns none at 0); None without a before."""
+    if before is None:
+        return None
+    return now.adjusted_close / before.adjusted_close - 1.0
 
 
 def _split_ratio(prev: Close, curr: Close) -> float:

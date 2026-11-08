@@ -762,6 +762,7 @@ class Position(BaseModel):
     avg_cost: float  # cost basis / shares, fees included
     last_close: float  # raw, comparable with fill prices
     last_date: date  # staleness is visible
+    day_change_pct: float | None  # since the previous ledger day; see ledger.OpenPosition
     market_value: float
     cost_basis: float
     unrealized: float
@@ -1055,7 +1056,8 @@ a single `<canvas>` set).
 - **Positions table:** a PrimeVue `DataTable` sorted by `unrealized_pct` descending. A Sector
   column follows Name, from `turtle.company.sector` (EODHD fundamentals; "—" when a ticker has no
   company row; GICS names such as "Information Technology"). Headers stay on one line, with
-  short labels (Close, Value, Cost, P&L, P&L %, Days) so the table fits 1366 px. The symbol
+  short labels (Close, Day %, Value, Cost, P&L, P&L %, Days) so the table fits 1366 px. Day % is
+  `day_change_pct`, coloured like P&L. The symbol
   cell is a `RouterLink` to `/chart/:symbol`. A `last_date` older than the as-of date renders as
   a warning badge.
 - **Two `LineChart`s:** "Holdings value vs cost basis" (`market_value`, `cost_basis`) and

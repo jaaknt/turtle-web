@@ -242,3 +242,36 @@ def test_unknown_fill_side_raises_naming_it() -> None:
     fill = Fill(day(0), "A", "short", 10, 100, 0.0, 0.0)
     with pytest.raises(LedgerError, match="unknown side 'short' for A"):
         build([fill], closes("A", [100] * 3) + closes(BENCH, [10] * 3), [BENCH])
+
+
+def test_day_change_is_since_the_previous_ledger_day() -> None:
+    ledger = build([buy(0, "A", 10, 100)], closes("A", [100, 110, 121]) + closes(BENCH, [10] * 3), [BENCH])
+    assert ledger.positions[0].day_change_pct == pytest.approx(0.10)
+
+
+def test_day_change_is_none_on_the_first_ledger_day() -> None:
+    # a close from the CLOSES lookback before the first fill does not make a previous ledger day
+    data = closes("A", [100, 100], start=-1) + closes(BENCH, [10, 10], start=-1)
+    assert build([buy(0, "A", 10, 100)], data, [BENCH]).positions[0].day_change_pct is None
+
+
+def test_a_split_on_the_last_day_is_not_a_drop() -> None:
+    raw, adj = [100.0, 100.0, 50.0], [50.0, 50.0, 50.0]  # 2:1 split on day 2
+    ledger = build([buy(0, "A", 10, 100)], closes("A", raw, adj) + closes(BENCH, [10] * 3), [BENCH])
+    assert ledger.positions[0].day_change_pct == pytest.approx(0.0)
+
+
+def test_a_stale_symbol_has_no_day_change() -> None:
+    # A's bars stop on day 1; the ledger forward-fills it, so its value did not move on day 2
+    ledger = build([buy(0, "A", 10, 100)], closes("A", [100, 120]) + closes(BENCH, [10] * 3), [BENCH])
+    (position,) = ledger.positions
+    assert position.last_close.date == day(1)
+    assert position.day_change_pct == 0
+
+
+def test_day_change_matches_the_last_two_history_points_across_a_gap() -> None:
+    # A has no bar on day 2: day 3's change spans days 1 to 3, exactly as the portfolio value moved
+    a = closes("A", [100, 110]) + closes("A", [121], start=3)
+    ledger = build([buy(0, "A", 10, 100)], a + closes(BENCH, [10] * 4), [BENCH])
+    prev, last = ledger.history[-2:]
+    assert ledger.positions[0].day_change_pct == pytest.approx(last.market_value / prev.market_value - 1)

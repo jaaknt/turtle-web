@@ -113,6 +113,9 @@ const pnlSeries = computed(() => [
           {{ money(data.last_close) }}
         </template>
       </Column>
+      <Column field="day_change_pct" header="Day %" sortable bodyClass="num" headerClass="num">
+        <template #body="{ data }"><span :class="pnlClass(data.day_change_pct)">{{ pct(data.day_change_pct) }}</span></template>
+      </Column>
       <Column field="market_value" header="Value" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }">{{ money(data.market_value) }}</template>
       </Column>

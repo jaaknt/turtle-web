@@ -275,6 +275,8 @@ export interface components {
              * Format: date
              */
             last_date: string;
+            /** Day Change Pct */
+            day_change_pct: number | null;
             /** Market Value */
             market_value: number;
             /** Cost Basis */

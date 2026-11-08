@@ -121,6 +121,7 @@ def portfolio(request: Request) -> Portfolio:
             avg_cost=p.cost / p.shares,
             last_close=p.last_close.close,
             last_date=p.last_close.date,
+            day_change_pct=p.day_change_pct,
             market_value=p.market_value,
             cost_basis=p.cost,
             unrealized=p.market_value - p.cost,

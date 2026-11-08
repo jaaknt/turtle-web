@@ -62,15 +62,16 @@ SYMBOLS = {
     BENCHMARK: "Demo Broad Market Index",
 }
 
-# EODHD sector names. DEMOF.US has no company row, as some live tickers have none.
+# GICS sector names, as the live turtle.company holds. DEMOF.US has no company row, as some live
+# tickers have none.
 SECTORS = {
-    "DEMOA.US": "Financial Services",
-    "DEMOB.US": "Technology",
+    "DEMOA.US": "Financials",
+    "DEMOB.US": "Information Technology",
     "DEMOC.US": "Industrials",
-    "DEMOD.US": "Healthcare",
+    "DEMOD.US": "Health Care",
     "DEMOE.US": "Energy",
-    "DEMOG.US": "Healthcare",
-    "DEMOH.US": "Technology",
+    "DEMOG.US": "Health Care",
+    "DEMOH.US": "Information Technology",
 }
 SPLIT_SYMBOL = "DEMOC.US"
 SPLIT_DAYS_BEFORE_END = 60  # the split lands while DEMOC.US is held (bought 120 days before end)

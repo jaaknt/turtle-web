@@ -1041,7 +1041,8 @@ a single `<canvas>` set).
   `unrealized_pct` can be `null` too.
 - **Positions table:** a PrimeVue `DataTable` sorted by `unrealized_pct` descending. A Sector
   column follows Name, from `turtle.company.sector` (EODHD fundamentals; "—" when a ticker has no
-  company row). The symbol
+  company row; GICS names such as "Information Technology"). Headers stay on one line, with
+  short labels (Close, Value, Cost, P&L, P&L %, Days) so the table fits 1366 px. The symbol
   cell is a `RouterLink` to `/chart/:symbol`. A `last_date` older than the as-of date renders as
   a warning badge.
 - **Two `LineChart`s:** "Holdings value vs cost basis" (`market_value`, `cost_basis`) and

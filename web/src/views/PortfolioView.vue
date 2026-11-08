@@ -57,6 +57,7 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
       size="small"
       stripedRows
       scrollable
+      class="positions"
     >
       <template #empty>No open positions.</template>
       <Column field="symbol" header="Symbol" sortable>
@@ -72,7 +73,7 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
       <Column field="avg_cost" header="Avg cost" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }">{{ money(data.avg_cost) }}</template>
       </Column>
-      <Column field="last_close" header="Last close" sortable bodyClass="num" headerClass="num">
+      <Column field="last_close" header="Close" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }">
           <span
             v-if="asOf && data.last_date < asOf"
@@ -82,19 +83,19 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
           {{ money(data.last_close) }}
         </template>
       </Column>
-      <Column field="market_value" header="Market value" sortable bodyClass="num" headerClass="num">
+      <Column field="market_value" header="Value" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }">{{ money(data.market_value) }}</template>
       </Column>
-      <Column field="cost_basis" header="Cost basis" sortable bodyClass="num" headerClass="num">
+      <Column field="cost_basis" header="Cost" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }">{{ money(data.cost_basis) }}</template>
       </Column>
-      <Column field="unrealized" header="Unrealized" sortable bodyClass="num" headerClass="num">
+      <Column field="unrealized" header="P&L" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }"><span :class="pnlClass(data.unrealized)">{{ money(data.unrealized) }}</span></template>
       </Column>
-      <Column field="unrealized_pct" header="Unrealized %" sortable bodyClass="num" headerClass="num">
+      <Column field="unrealized_pct" header="P&L %" sortable bodyClass="num" headerClass="num">
         <template #body="{ data }"><span :class="pnlClass(data.unrealized_pct)">{{ pct(data.unrealized_pct) }}</span></template>
       </Column>
-      <Column field="days_held" header="Days held" sortable bodyClass="num" headerClass="num" />
+      <Column field="days_held" header="Days" sortable bodyClass="num" headerClass="num" />
     </DataTable>
 
     <section class="charts">
@@ -113,6 +114,10 @@ const pnlSeries = computed(() => [line('Total P&L', '#26a69a', 'total_pnl'), lin
 </template>
 
 <style scoped>
+/* One-line headers: the short labels above keep the table within 1366px even with long sector names. */
+.positions :deep(.p-datatable-thead > tr > th) {
+  white-space: nowrap;
+}
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

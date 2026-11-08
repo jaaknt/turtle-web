@@ -41,6 +41,8 @@ jobs:
         with: { node-version: 22 }
       - name: Build
         working-directory: web
+        env:
+          APP_VERSION: ${{ github.ref_name }} # shown in the nav bar
         run: npm ci && npm run build
       - name: Package
         run: tar -czf web-dist.tgz -C web/dist .

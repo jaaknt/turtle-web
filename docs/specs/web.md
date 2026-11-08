@@ -1159,6 +1159,12 @@ The shipped workflows differ from the sketch above in these ways:
   runs cancelled by newer pushes.
 - The `web` job runs `npm run build` only: it starts with `vue-tsc -b`, so a separate
   `type-check` step would check everything twice.
+- **The nav bar shows the version.** `release.yml` builds with `APP_VERSION` set to the tag;
+  `vite.config.ts` bakes it in, with a link to the release page built from the `GITHUB_SERVER_URL`
+  and `GITHUB_REPOSITORY` that Actions sets. Being a release is decided by `APP_VERSION` being set,
+  not by the string's shape, so any `v*` tag links and nothing else does. Other builds show
+  `git describe --tags --always --dirty`, unlinked, even on a clean checkout of a tag: a bare
+  short SHA in CI's shallow checkout, `v0.3.1-2-gabc1234-dirty` and the like locally.
 - **`release.yml` gates the release:** it fails unless the tagged commit is on `main`, then runs
   the whole of `ci.yml` (as a reusable workflow) on that commit, and only then builds and runs
   `gh release create --verify-tag --generate-notes`. Only that last job gets `contents: write`, and

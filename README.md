@@ -8,9 +8,8 @@ and the signals the baseline strategy fired.
 - **Frontend:** Vue 3 + Vite + TypeScript, PrimeVue tables
 - **Charts:** [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/)
 
-> **Status:** scaffold only. The build guide is
-> [`docs/specs/web.md`](https://github.com/jaaknt/turtle-backtest/blob/main/docs/specs/web.md) in
-> turtle-backtest; this repository follows it step by step.
+> **Status:** in progress — the API is built (Steps 1–6), the frontend is next. The build guide is
+> [`docs/specs/web.md`](docs/specs/web.md); this repository follows it step by step.
 
 ## No real data, ever
 

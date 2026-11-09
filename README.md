@@ -2,7 +2,12 @@
 
 A read-only web dashboard over the [turtle-backtest](https://github.com/jaaknt/turtle-backtest)
 PostgreSQL database: portfolio value and P&L, transactions, price charts with your fills marked,
-and the signals the baseline strategy fired.
+the signals the baseline strategy fired, and an analytics page with risk metrics, drawdowns and
+monthly returns against benchmarks (SPY and QQQ by default).
+
+The Portfolio page's P&L is in dollars, so it grows with every buy. The Analytics page's returns
+are [time-weighted](docs/specs/portfolio.md#the-return-model): they measure the holdings
+regardless of how much money was in them, not the account.
 
 - **Backend:** FastAPI, sync SQLAlchemy Core, raw SQL, read-only `turtle_web` database role
 - **Frontend:** Vue 3 + Vite + TypeScript, PrimeVue tables

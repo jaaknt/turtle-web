@@ -16,7 +16,7 @@ what it is worth, or a chart with your own fills marked on it, you run a script 
 fixed-width table in a terminal.
 
 This document is a **step-by-step guide** to building a separate, open-source, read-only
-dashboard over the `turtle` schema. It covers five things:
+dashboard over the `turtle` schema. It covers six things:
 
 1. **Portfolio** — current value, cost basis, unrealized and realized P&L, per-position table.
 2. **Portfolio over time** — holdings value vs cost basis, and P&L vs a benchmark.
@@ -24,6 +24,8 @@ dashboard over the `turtle` schema. It covers five things:
 4. **Price history** — candlestick chart for any symbol, with your fills and average cost marked.
 5. **Signals** — what the baseline algorithm fired over the last 3 months, how each has moved since
    entry, and which ones you actually bought.
+6. **Analytics** — time-weighted return and risk metrics vs SPY and QQQ. Added later, with its
+   own plan: [portfolio.md](portfolio.md).
 
 ### Decisions
 
@@ -68,15 +70,17 @@ Prod:  Browser ──Tailscale──> uvicorn :8080 ├── /api/*  JSON
 CI:    lint + type-check + test (against demo DB) → on tag: release web-dist.tgz
 ```
 
-Two layers of logic, nothing more:
+Three layers of logic, nothing more:
 
-- **SQL** (`api/turtleweb/sql.py`) fetches rows. Six statements, all index-bounded.
+- **SQL** (`api/turtleweb/sql.py`) fetches rows. Five statements, all index-bounded.
 - **The ledger** (`api/turtleweb/ledger.py`) turns transactions + closes into positions, P&L and
   a daily history. Pure Python, no I/O, fully unit-tested. Average-cost accounting is
   sequential, which is awkward in SQL and twenty clear lines in Python — and the data is tiny
   (22 transactions, ~2,100 close rows).
+- **Analytics** (`api/turtleweb/analytics.py`) turns the ledger into time-weighted returns and
+  risk metrics. Pure Python, standard library only; see [portfolio.md](portfolio.md).
 
-No repository classes, no service layer, no Pinia store: six queries and four pages do not
+No repository classes, no service layer, no Pinia store: five queries and five pages do not
 need them.
 
 ## The P&L model
@@ -751,8 +755,10 @@ which generates the frontend's TypeScript types in Step 7.
 | `GET /api/symbols` | `Symbol[]` | SYMBOLS, cached in `app.state.symbols` for an hour |
 | `GET /api/chart/{symbol}?start=&adjusted=false` | `ChartData` | BARS, plus TRANSACTIONS + CLOSES → `ledger.build` for `avg_cost` |
 | `GET /api/signals?days=90&min_ranking=44` | `SignalRow[]` | SIGNALS, `:strategy` / `:ranking_strategy` from `settings.signal_strategy` / `signal_ranking_strategy` |
+| `GET /api/analytics` | `Analytics` | TRANSACTIONS + CLOSES → `ledger.build` → `analytics.report`; see [portfolio.md, Step 5](portfolio.md#step-5--endpoint-and-response-models) |
 
-Key models (`turtleweb/models.py`):
+Key models (`turtleweb/models.py`; `Analytics` is in
+[portfolio.md, Step 5](portfolio.md#step-5--endpoint-and-response-models)):
 
 ```python
 class Position(BaseModel):
@@ -852,7 +858,7 @@ gzipped and uncached; the symbol cache reloads once stale; an unknown symbol is 
 out-of-range signal parameters are a 422; a ledger error is a 500 naming the ticker on
 `/api/portfolio`, while the chart still returns, without its cost line.
 
-**Verify:** `/docs` (FastAPI's Swagger UI) lists all six routes with typed schemas, and
+**Verify:** `/docs` (FastAPI's Swagger UI) lists all seven routes with typed schemas, and
 `uv run pytest && uv run mypy` passes.
 
 ### Step 7 — Frontend scaffold
@@ -1044,7 +1050,7 @@ matches the buy price (on `DEMOC.US`, whose split comes after the buy, it sits a
 of it: 93.45 against a 186.70 buy, since the ledger rescales held shares). Switching symbols leaves exactly one chart on the page (check the DOM for
 a single `<canvas>` set).
 
-### Step 9 — The four pages
+### Step 9 — The pages
 
 **`PortfolioView.vue`** (`/`): one `api.portfolio()` call.
 
@@ -1110,11 +1116,15 @@ Default sort is newest first.
 - **Footer:** "Change % is a total return from the next-day open, split- and dividend-adjusted.
   Prices shown are raw."
 
-**Verify:** all four pages render from the demo DB. The market value and cost basis KPIs equal
-the column sums of the positions table. Realized P&L can exceed the table's sum, since it includes
-closed positions. Each transaction's chart link opens that symbol with its arrow on the right date. The signals
-page's row count changes as `min_ranking` moves across 44, and bought rows match the transactions
-page's linked buys.
+**`AnalyticsView.vue`** (`/analytics`): one `api.analytics()` call. Its layout is in
+[portfolio.md, Step 7](portfolio.md#step-7--the-page).
+
+**Verify:** all five pages render from the demo DB; the Analytics page's own checks are in
+[portfolio.md, Verification](portfolio.md#verification). The market value and cost basis KPIs
+equal the column sums of the positions table. Realized P&L can exceed the table's sum, since it
+includes closed positions. Each transaction's chart link opens that symbol with its arrow on the
+right date. The signals page's row count changes as `min_ranking` moves across 44, and bought rows
+match the transactions page's linked buys.
 
 ### Step 10 — CI
 
@@ -1330,7 +1340,7 @@ The earlier draft of this document was organised into numbered sections. They ma
 | §1.4 Nightly run | Shipped as a second `ExecStart=` in `deploy/eodhd-download-daily.service`, chained after the history download (05:00 Europe/Tallinn, Mon–Sat), with a 7-day window so `next_open` backfills |
 | §1.5 Read-only role | Done — now [Step 0](#step-0--read-only-role-in-turtle-backtest); in `db/init.sh` and applied on the VPS and locally |
 | Workstream 2 (FastAPI + Jinja) | Replaced by this FastAPI + Vue design |
-| §"Signals, last 3 months" | Simplified into the SIGNALS query ([Step 4](#step-4--the-sql-module)) using the persisted indicators; page in [Step 9](#step-9--the-four-pages) |
+| §"Signals, last 3 months" | Simplified into the SIGNALS query ([Step 4](#step-4--the-sql-module)) using the persisted indicators; page in [Step 9](#step-9--the-pages) |
 
 ## Open items
 

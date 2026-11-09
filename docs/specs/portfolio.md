@@ -1,8 +1,8 @@
 # Design: portfolio analytics page
 
-> **Status:** Being implemented; Steps 1–7 are done. Each step is marked **Done** as it lands, as in
-> [web.md](web.md). This page extends the dashboard that web.md describes; read its
-> [P&L model](web.md#the-pl-model) first, because the return model below builds on it.
+> **Status:** Steps 1–8 are done; the [verification](#verification) remains. This page extends
+> the dashboard that [web.md](web.md) describes; read its [P&L model](web.md#the-pl-model) first,
+> because the return model below builds on it.
 
 ## Context
 
@@ -413,6 +413,8 @@ the `.kpis`, `.charts` and `.toggle` styles are now shared with the Portfolio an
 Empty state before the first fill, as on the Portfolio page: a sentence, not a page of zeros.
 
 ### Step 8 — Documentation
+
+**Done.** Implemented in `turtle-web` 2026-11-09.
 
 - web.md: add the page to the list in its Context section and to Step 9's page list, with a
   link here; add `/api/analytics` to Step 6's endpoint list.

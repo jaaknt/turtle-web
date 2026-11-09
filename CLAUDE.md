@@ -49,6 +49,7 @@ reviews conflict, keep the user's last decision and name the trade-off.
 ## Git
 
 Trunk-based: commit directly to `main`, no branches or pull requests. Push only when asked.
+Enable the tracked check-only pre-commit hook once per clone: `git config core.hooksPath .githooks`.
 Releases are annotated tags `vX.Y.Z` (`git tag -a v0.5.1 -m "v0.5.1: …"`); pushing one runs
 `release.yml`, which re-runs CI and publishes `web-dist.tgz` for the VPS. Never move, delete or
 force-push a published tag without asking: the VPS may already have deployed it.

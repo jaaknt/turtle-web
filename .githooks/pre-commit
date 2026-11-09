@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export UV_LOCKED=1 # as in CI: fail on a stale uv.lock rather than rewrite it
+
+# Tracked hook. Enable it once per clone with:
+#
+#     git config core.hooksPath .githooks
+#
+# Git does not pick up a tracked hooks directory on its own.
+#
+# Check-only by design: nothing here may rewrite a file. A formatter in write mode would change the
+# working tree without re-staging, so the commit would capture the unformatted index and CI's
+# `ruff format --check` would fail on that exact commit.
+#
+# Each check mirrors a CI job and runs only when the commit touches that job's files. pytest, the
+# gen:api drift check and the Vite build are left to CI and the commit-push skill: too slow for
+# every commit. The checks read the working tree, not the index, so unstaged edits count too.
+
+cd "$(git rev-parse --show-toplevel)"
+staged=$(git diff --cached --name-only)
+
+if grep -q '^api/' <<<"$staged"; then
+  echo "api: ruff check, ruff format --check, mypy"
+  (cd api && uv run -q ruff check && uv run -q ruff format --check && uv run -q mypy)
+fi
+
+if grep -q '^web/' <<<"$staged"; then
+  echo "web: type-check"
+  (cd web && npm run -s type-check)
+fi
+
+# Any .md: markdownlint-cli2 itself picks the files from .markdownlint-cli2.jsonc's globs
+if grep -q '\.md$' <<<"$staged"; then
+  echo "docs: markdownlint"
+  npx -y markdownlint-cli2@0.24.0
+fi

@@ -7,12 +7,13 @@ import AnalyticsCaveats from '../components/AnalyticsCaveats.vue'
 import BarChart from '../components/BarChart.vue'
 import KpiTile from '../components/KpiTile.vue'
 import LineChart, { type LineSeriesSpec } from '../components/LineChart.vue'
+import LoadError from '../components/LoadError.vue'
 import MonthlyReturns from '../components/MonthlyReturns.vue'
 import { benchmarkColor, PORTFOLIO_COLOR } from '../charts'
 import { day, days, pct, pnlClass, ratio, share, ticker } from '../format'
 import { useLoad } from '../useLoad'
 
-const { data: analytics, error, loading } = useLoad(() => api.analytics())
+const { data: analytics, error, loading, reload } = useLoad(() => api.analytics())
 
 type Series = Analytics['series'][number]
 type MetricKey = keyof Series['metrics']
@@ -57,23 +58,34 @@ const METRICS: MetricRow[] = [
   { label: 'Correlation', key: 'correlation', fmt: ratio },
 ]
 
-function cell(s: Series, row: MetricRow): { text: string; tone: '' | 'pos' | 'neg' } {
-  const v = s.metrics[row.key]
+// No series yet (the first response is loading): the formatter's dash.
+function cell(s: Series | undefined, row: MetricRow): { text: string; tone: '' | 'pos' | 'neg' } {
+  const v = s?.metrics[row.key] ?? null
   return { text: row.fmt(v), tone: row.signed ? pnlClass(v) : '' }
 }
 // Formatted once per response, not on every render: one cell per series, in series order.
 const table = computed(() => METRICS.map((m) => ({ ...m, cells: series.value.map((s) => cell(s, m)) })))
 
-// The KPI row: four of the metrics, the portfolio's value with the first benchmark's as the sub line.
-const KPI_KEYS: MetricKey[] = ['cumulative_return', 'cagr', 'sharpe', 'max_drawdown']
-const kpis = computed(() => {
-  const [own, bench] = series.value
-  if (!own) return []
-  return METRICS.filter((m) => KPI_KEYS.includes(m.key)).map((m) => {
-    const { text, tone } = cell(own, m)
-    return { label: m.label, value: text, tone, sub: bench ? `${looks.value[1]!.name} ${cell(bench, m).text}` : undefined }
-  })
+// The KPI row: the cumulative return leads, with every benchmark's under it; three more metrics
+// follow, each with the first benchmark's value as the sub line. Dashes until the first response.
+const metric = (key: MetricKey): MetricRow => METRICS.find((m) => m.key === key)!
+// 'SPY +8.90%': a benchmark's value under the portfolio's, by series index.
+const vs = (i: number, m: MetricRow): string => `${looks.value[i]!.name} ${cell(series.value[i], m).text}`
+const lead = computed(() => {
+  const m = metric('cumulative_return')
+  return {
+    label: m.label,
+    ...cell(series.value[0], m),
+    benches: series.value.slice(1).map((s, i) => ({ symbol: s.symbol, text: vs(i + 1, m) })),
+  }
 })
+const KPI_KEYS: MetricKey[] = ['cagr', 'sharpe', 'max_drawdown']
+const kpis = computed(() =>
+  KPI_KEYS.map(metric).map((m) => {
+    const { text, tone } = cell(series.value[0], m)
+    return { label: m.label, value: text, tone, sub: series.value.length > 1 ? vs(1, m) : undefined }
+  }),
+)
 
 function lines(field: 'cumulative' | 'drawdown'): LineSeriesSpec[] {
   const curve = analytics.value?.curve ?? []
@@ -95,15 +107,20 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
 
 <template>
   <h1>Analytics</h1>
-  <p v-if="error" class="error">{{ error }}</p>
-  <p v-else-if="loading && !analytics" class="placeholder">Loading…</p>
+  <p v-if="analytics && portfolio" class="page-meta">
+    {{ analytics.trading_days }} trading days, {{ day(analytics.start) }} → {{ day(analytics.end) }}
+  </p>
+  <LoadError v-if="error" what="the analytics" :error="error" @retry="reload" />
   <p v-else-if="analytics && !analytics.start" class="placeholder">No transactions yet: the analytics start with the first fill.</p>
 
+  <section v-if="portfolio || (loading && !analytics)" class="kpis" :class="{ stale: !portfolio }" :aria-busy="!portfolio">
+    <KpiTile lead :label="lead.label" :value="lead.text" :tone="lead.tone">
+      <div v-for="b in lead.benches" :key="b.symbol" class="kpi-sub placeholder">{{ b.text }}</div>
+    </KpiTile>
+    <KpiTile v-for="k in kpis" :key="k.label" :label="k.label" :value="k.value" :sub="k.sub" :tone="k.tone" subTone="" />
+  </section>
+
   <template v-if="analytics && portfolio">
-    <section class="kpis">
-      <KpiTile v-for="k in kpis" :key="k.label" :label="k.label" :value="k.value" :sub="k.sub" :tone="k.tone" subTone="" />
-      <KpiTile label="Period" :value="`${analytics.trading_days} trading days`" :sub="`${day(analytics.start)} → ${day(analytics.end)}`" />
-    </section>
 
     <!-- Two columns, like a quantstats tear sheet: the charts on the left, the numbers on the right. -->
     <div class="tearsheet">

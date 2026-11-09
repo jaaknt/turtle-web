@@ -1054,11 +1054,14 @@ a single `<canvas>` set).
 
 **`PortfolioView.vue`** (`/`): one `api.portfolio()` call.
 
-- **KPI row** (`KpiTile.vue`): market value, cost basis, unrealized P&L ($ and %), realized P&L,
-  total P&L, one "Total P&L vs SPY" tile per benchmark (the difference, with that benchmark's
-  P&L below it), open positions count, and the as-of date (the last history point).
+- **As-of line** under the title: the last history point's date.
+- **KPI row** (`KpiTile.vue`), led by **total P&L** in a tile twice as wide, with a larger value
+  and one line per benchmark under it: the gap as a sentence ("$227.86 behind SPY", green ahead,
+  red behind) and that benchmark's P&L in brackets. Then market value, cost basis, unrealized P&L
+  ($ and %) and realized P&L. The open positions count is in the table's heading.
   `totals` is `null` before the first fill: show an empty state, not a row of zeros.
-  `unrealized_pct` can be `null` too.
+  `unrealized_pct` can be `null` too. Until the first response the row shows dimmed dashes, so
+  the page does not jump when it arrives.
 - **Positions table:** a PrimeVue `DataTable` sorted by `unrealized_pct` descending. A Sector
   column follows Name, from `turtle.company.sector` (EODHD fundamentals; "—" when a ticker has no
   company row; GICS names such as "Information Technology"). Headers stay on one line, with
@@ -1118,6 +1121,13 @@ Default sort is newest first.
 
 **`AnalyticsView.vue`** (`/analytics`): one `api.analytics()` call. Its layout is in
 [portfolio.md, Step 7](portfolio.md#step-7--the-page).
+
+**Load errors** (Portfolio, Analytics, Transactions, Signals): `LoadError.vue` says what failed
+("Couldn't load the portfolio: …") and offers **Try again**, which calls `useLoad`'s `reload`. In
+`client.ts`, `get()` turns a down API into a plain message, whether `fetch` rejects ("no answer
+from the server") or the proxy answers 502, 503 or 504 with no `detail` ("no answer from the
+API"); any other failure shows the API's `detail`. The Chart page retries through its Open
+button, so it keeps its plain error line.
 
 **Verify:** all five pages render from the demo DB; the Analytics page's own checks are in
 [portfolio.md, Verification](portfolio.md#verification). The market value and cost basis KPIs

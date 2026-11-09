@@ -5,12 +5,13 @@ import DataTable from 'primevue/datatable'
 import { api } from '../api/client'
 import KpiTile from '../components/KpiTile.vue'
 import LineChart, { type LineSeriesSpec } from '../components/LineChart.vue'
+import LoadError from '../components/LoadError.vue'
 import PnlCaveats from '../components/PnlCaveats.vue'
 import { benchmarkColor, PORTFOLIO_COLOR } from '../charts'
 import { money, num, pct, pnlClass, ticker } from '../format'
 import { useLoad } from '../useLoad'
 
-const { data: portfolio, error, loading } = useLoad(() => api.portfolio())
+const { data: portfolio, error, loading, reload } = useLoad(() => api.portfolio())
 
 const totals = computed(() => portfolio.value?.totals ?? null)
 const asOf = computed(() => totals.value?.date ?? null)
@@ -26,7 +27,11 @@ const vsBenchmarks = computed(() => {
   if (!t) return []
   return benchmarks.value.map((b) => {
     const pnl = t.benchmark_pnl[b]!
-    return { symbol: b, ticker: ticker(b), pnl, diff: t.total_pnl - pnl }
+    // Read as a sentence, "$1,234.00 ahead of SPY": the size of the gap, its sign in the words.
+    // Rounded to the cent first, so float noise never reads "$0.00 ahead of SPY" in green.
+    const diff = Math.round((t.total_pnl - pnl) * 100) / 100
+    const relation = diff > 0 ? 'ahead of' : diff < 0 ? 'behind' : 'level with'
+    return { symbol: b, ticker: ticker(b), pnl, diff, gap: Math.abs(diff), relation }
   })
 })
 
@@ -54,31 +59,26 @@ const pnlSeries = computed(() => [
 
 <template>
   <h1>Portfolio</h1>
-  <p v-if="error" class="error">{{ error }}</p>
-  <p v-else-if="loading && !portfolio" class="placeholder">Loading…</p>
+  <p v-if="asOf" class="page-meta">As of {{ asOf }}</p>
+  <LoadError v-if="error" what="the portfolio" :error="error" @retry="reload" />
   <p v-else-if="portfolio && !totals" class="placeholder">No transactions yet: the portfolio starts with the first fill.</p>
 
-  <template v-if="portfolio && totals">
-    <section class="kpis">
-      <KpiTile label="Market value" :value="money(totals.market_value)" />
-      <KpiTile label="Cost basis" :value="money(totals.cost_basis)" />
-      <KpiTile label="Unrealized P&L" :value="money(unrealized)" :sub="pct(unrealizedPct)" :tone="pnlClass(unrealized)" />
-      <KpiTile label="Realized P&L" :value="money(totals.realized)" :tone="pnlClass(totals.realized)" />
-      <KpiTile label="Total P&L" :value="money(totals.total_pnl)" :tone="pnlClass(totals.total_pnl)" />
-      <KpiTile
-        v-for="b in vsBenchmarks"
-        :key="b.symbol"
-        :label="`Total P&L vs ${b.ticker}`"
-        :value="money(b.diff)"
-        :sub="`${b.ticker} P&L ${money(b.pnl)}`"
-        :tone="pnlClass(b.diff)"
-        subTone=""
-      />
-      <KpiTile label="Open positions" :value="String(portfolio.positions.length)" />
-      <KpiTile label="As of" :value="asOf ?? '—'" />
-    </section>
+  <!-- Before the first response the tiles show dashes, dimmed: money(undefined) is '—'. -->
+  <section v-if="totals || (loading && !portfolio)" class="kpis" :class="{ stale: !totals }" :aria-busy="!totals">
+    <KpiTile lead label="Total P&L" :value="money(totals?.total_pnl)" :tone="pnlClass(totals?.total_pnl)">
+      <div v-for="b in vsBenchmarks" :key="b.symbol" class="kpi-sub">
+        <span :class="pnlClass(b.diff)">{{ money(b.gap) }} {{ b.relation }} {{ b.ticker }}</span>
+        <span class="placeholder"> ({{ b.ticker }} P&amp;L {{ money(b.pnl) }})</span>
+      </div>
+    </KpiTile>
+    <KpiTile label="Market value" :value="money(totals?.market_value)" />
+    <KpiTile label="Cost basis" :value="money(totals?.cost_basis)" />
+    <KpiTile label="Unrealized P&L" :value="money(unrealized)" :sub="pct(unrealizedPct)" :tone="pnlClass(unrealized)" />
+    <KpiTile label="Realized P&L" :value="money(totals?.realized)" :tone="pnlClass(totals?.realized)" />
+  </section>
 
-    <h2>Open positions</h2>
+  <template v-if="portfolio && totals">
+    <h2>Open positions ({{ portfolio.positions.length }})</h2>
     <DataTable
       :value="portfolio.positions"
       sortField="unrealized_pct"

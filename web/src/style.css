@@ -193,7 +193,15 @@ th.num .p-datatable-column-header-content {
   color: var(--bg);
 }
 
-/* Dashboard pages (Portfolio, Analytics) open with a row of KPI tiles. */
+/* The line under a page title: the date the numbers are as of. */
+.page-meta {
+  margin: -0.5rem 0 1rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dashboard pages (Portfolio, Analytics) open with a row of KPI tiles, the lead tile first.
+   Shown dimmed with dashes while the first response loads, so the page does not jump. */
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

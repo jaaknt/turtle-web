@@ -3,10 +3,11 @@ import { computed } from 'vue'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import { api, type Transaction } from '../api/client'
+import LoadError from '../components/LoadError.vue'
 import { day, money, num, pct, pnlClass } from '../format'
 import { useLoad } from '../useLoad'
 
-const { data: transactions, error, loading } = useLoad(() => api.transactions())
+const { data: transactions, error, loading, reload } = useLoad(() => api.transactions())
 
 // Cash out for a buy, cash in for a sell: the P&L model's buy cost and sell proceeds.
 function amount(t: Transaction): number {
@@ -20,7 +21,7 @@ const rows = computed(() => transactions.value?.map((t) => ({ ...t, amount: amou
 
 <template>
   <h1>Transactions</h1>
-  <p v-if="error" class="error">{{ error }}</p>
+  <LoadError v-if="error" what="the transactions" :error="error" @retry="reload" />
   <p v-else-if="loading && !transactions" class="placeholder">Loading…</p>
 
   <DataTable

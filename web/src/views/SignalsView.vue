@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import { api, type SignalRow } from '../api/client'
+import LoadError from '../components/LoadError.vue'
 import { day, median, money, pct, pnlClass } from '../format'
 import { useLoad } from '../useLoad'
 
@@ -40,7 +41,7 @@ function onMinRanking(e: Event): void {
   setQuery('min_ranking', value)
 }
 
-const { data: signals, error, loading } = useLoad(() => api.signals(days.value, minRanking.value), [days, minRanking])
+const { data: signals, error, loading, reload } = useLoad(() => api.signals(days.value, minRanking.value), [days, minRanking])
 
 const summary = computed(() => {
   const rows = signals.value ?? []
@@ -74,7 +75,7 @@ const rowClass = (r: SignalRow) => (r.bought ? 'bought' : undefined)
     <span v-if="loading" class="placeholder">Loading…</span>
   </form>
 
-  <p v-if="error" class="error">{{ error }}</p>
+  <LoadError v-if="error" what="the signals" :error="error" @retry="reload" />
 
   <template v-if="signals">
     <p class="summary" :class="{ stale: loading }">

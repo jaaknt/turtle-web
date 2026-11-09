@@ -386,8 +386,9 @@ under it: at most about eight, always 0 and both outer edges. With no bins it sh
 
 ### Step 7 — The page
 
-**Done.** Implemented in `turtle-web` 2026-11-09. The Period tile shows the trading days, with the
-dates as its sub line: the date range overflows a tile at 1366px. Under the KPI row the page has two
+**Done.** Implemented in `turtle-web` 2026-11-09. The period (trading days and dates) is a line
+under the title rather than a tile, since the date range overflows a tile at 1366px; the
+cumulative return leads the KPI row (revised 2026-11-09). Under the KPI row the page has two
 columns, like quantstats' tear sheet: the charts on the left (cumulative return, drawdown, monthly
 returns, distribution) and the numbers on the right (metrics, worst drawdowns) in a column as wide
 as its tables. They wrap, charts first, once the charts would get narrower than 560px. The monthly
@@ -398,9 +399,11 @@ colours and the `.kpis` and `.toggle` styles are shared with the Portfolio and C
 
 `AnalyticsView.vue`, one `api.analytics()` call through `useLoad`, as on the Portfolio page:
 
-- **KPI row** (`KpiTile`): cumulative return, CAGR, Sharpe, max drawdown, each with the first
-  benchmark's value as the `sub` line. The period (`start` → `end`, `trading_days` days)
-  completes the row.
+- **Period line** under the title: `trading_days` trading days, `start` → `end`.
+- **KPI row** (`KpiTile`), led by **cumulative return** in a tile twice as wide, with every
+  benchmark's cumulative return under it. Then CAGR, Sharpe and max drawdown, each with the first
+  benchmark's value as the `sub` line. Dimmed dashes until the first response, as on the
+  Portfolio page.
 - **Left column**, the charts:
   - **Cumulative return** and **Drawdown**: two `LineChart`s with `percent`, one above the other,
     with the Portfolio page's benchmark colours.

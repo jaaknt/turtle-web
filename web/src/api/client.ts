@@ -33,7 +33,13 @@ function describe(detail: unknown): string | null {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`)
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`)
+  } catch {
+    // No response at all; the browser's message ('Failed to fetch', 'Load failed', …) names no cause.
+    throw new ApiError(0, 'no answer from the server (is the API running?)')
+  }
   if (!res.ok) {
     let detail: string | null = null
     try {
@@ -41,6 +47,8 @@ async function get<T>(path: string): Promise<T> {
     } catch {
       // not JSON (a proxy error page, say): fall back to the status line
     }
+    // A gateway error with no detail is the proxy in front of an API that is down.
+    if (!detail && [502, 503, 504].includes(res.status)) detail = `no answer from the API (${res.status})`
     throw new ApiError(res.status, detail ?? `${res.status} ${res.statusText} — ${path}`)
   }
   return res.json() as Promise<T>

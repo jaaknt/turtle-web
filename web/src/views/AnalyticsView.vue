@@ -136,7 +136,7 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
 
       <div class="numbers">
         <h2>Metrics</h2>
-        <DataTable :value="table" dataKey="key" size="small" stripedRows scrollable class="metrics">
+        <DataTable :value="table" dataKey="key" size="small" stripedRows scrollable>
           <Column header="Metric">
             <template #body="{ data }">
               {{ data.label }}
@@ -175,8 +175,8 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
 </template>
 
 <style scoped>
-/* Charts beside a 500px numbers column (the drawdowns table needs 484px; a third benchmark scrolls
-   its metrics). They wrap, charts first, once the charts would get under 560px: no breakpoint. */
+/* Charts beside a numbers column as wide as its tables. They wrap, charts first, once the charts
+   would get under 560px: no breakpoint. */
 .tearsheet {
   display: flex;
   flex-wrap: wrap;
@@ -184,12 +184,12 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
   align-items: flex-start;
 }
 .plots {
-  flex: 999 1 560px; /* takes nearly all the spare width while side by side */
+  flex: 1 1 560px;
   min-width: 0;
 }
 .numbers {
-  flex: 1 1 500px;
-  min-width: 0; /* its tables scroll within the column */
+  flex: 0 1 max-content;
+  min-width: 0; /* on a phone its tables scroll within the column */
 }
 .tearsheet h2:first-child {
   margin-top: 0;

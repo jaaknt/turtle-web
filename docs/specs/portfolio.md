@@ -389,28 +389,30 @@ under it: at most about eight, always 0 and both outer edges. With no bins it sh
 **Done.** Implemented in `turtle-web` 2026-11-09. The Period tile shows the trading days, with the
 dates as its sub line: the date range overflows a tile at 1366px. Under the KPI row the page has two
 columns, like quantstats' tear sheet: the charts on the left (cumulative return, drawdown, monthly
-returns, distribution) and the numbers on the right (metrics, worst drawdowns) in a 500px column,
-where a third benchmark scrolls rather than squeezing the charts. They wrap, charts first, once the
-charts would get narrower than 560px. The monthly table's cells are tight enough for its thirteen
-columns to fit the chart column at 1366px with two benchmarks. The footer is `AnalyticsCaveats.vue`,
-with a fourth caveat: the benchmarks are buy and hold, not the Portfolio page's shadow benchmarks.
-`ticker`, the series colours and the `.kpis` and `.toggle` styles are shared with the Portfolio and
-Chart pages.
+returns, distribution) and the numbers on the right (metrics, worst drawdowns) in a column as wide
+as its tables. They wrap, charts first, once the charts would get narrower than 560px. The monthly
+table's cells are tight enough for its thirteen columns to fit the chart column at 1366px. The
+footer is `AnalyticsCaveats.vue`, with a fourth caveat: the benchmarks are buy and hold, not the
+Portfolio page's shadow benchmarks. `ticker`, the series colours and the `.kpis` and `.toggle`
+styles are shared with the Portfolio and Chart pages.
 
 `AnalyticsView.vue`, one `api.analytics()` call through `useLoad`, as on the Portfolio page:
 
 - **KPI row** (`KpiTile`): cumulative return, CAGR, Sharpe, max drawdown, each with the first
   benchmark's value as the `sub` line. The period (`start` → `end`, `trading_days` days)
   completes the row.
-- **Metrics table**: a PrimeVue `DataTable`, one row per metric and one column per series.
-  Annualised rows carry a "< 1 year" badge (the `badge warn` class the Close column uses) while
-  `trading_days < 252`.
-- **Cumulative return** and **Drawdown**: two `LineChart`s with `percent`, one above the other,
-  with the Portfolio page's benchmark colours.
-- **Monthly returns**: `MonthlyReturns`, the portfolio's. A selector switches to a benchmark's.
-- **Distribution of returns**: `BarChart` with a Monthly / Daily toggle. It defaults to daily
-  while there are fewer than 12 full months (partial ones do not count), because a handful of monthly bars says little.
-- **Worst drawdowns**: a `DataTable` over `drawdowns`; "ongoing" when `ongoing` is set.
+- **Left column**, the charts:
+  - **Cumulative return** and **Drawdown**: two `LineChart`s with `percent`, one above the other,
+    with the Portfolio page's benchmark colours.
+  - **Monthly returns**: `MonthlyReturns`, the portfolio's. A selector switches to a benchmark's.
+  - **Distribution of returns**: `BarChart` with a Monthly / Daily toggle. It defaults to daily
+    while there are fewer than 12 full months (partial ones do not count), because a handful of
+    monthly bars says little.
+- **Right column**, the numbers:
+  - **Metrics table**: a PrimeVue `DataTable`, one row per metric and one column per series.
+    Annualised rows carry a "< 1 year" badge (the `badge warn` class the Close column uses) while
+    `trading_days < 252`.
+  - **Worst drawdowns**: a `DataTable` over `drawdowns`; "ongoing" when `ongoing` is set.
 - **Footer**: the [return model's caveats](#the-return-model), in a component next to
   `PnlCaveats.vue`, kept in step with this document as that one is with web.md.
 

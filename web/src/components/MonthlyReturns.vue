@@ -61,7 +61,7 @@ const rows = computed(() => {
   border-collapse: collapse;
   font-size: 0.8rem;
 }
-/* Tight cells: thirteen columns of signed percentages, kept narrow enough to sit beside a sidebar. */
+/* Tight cells: thirteen columns of signed percentages fit beside another column. */
 .monthly th,
 .monthly td {
   border: 1px solid var(--border);

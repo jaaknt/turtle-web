@@ -189,7 +189,7 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
 }
 .numbers {
   flex: 0 1 max-content;
-  min-width: 0; /* on a phone its tables scroll within the column */
+  min-width: 0; /* when narrower than its tables, they scroll within the column */
 }
 .tearsheet h2:first-child {
   margin-top: 0;

@@ -386,12 +386,16 @@ under it: at most about eight, always 0 and both outer edges. With no bins it sh
 
 ### Step 7 — The page
 
-**Done.** Implemented in `turtle-web` 2026-11-09. The Period tile shows the trading days, with
-the dates as its sub line: the date range overflows a tile at 1366px. The monthly table takes the
-full width (thirteen columns do not fit beside a chart), and the histogram sits beside the worst
-drawdowns instead. The footer is `AnalyticsCaveats.vue`, with a fourth caveat: the benchmarks
-are buy and hold, not the Portfolio page's shadow benchmarks. `ticker`, the series colours and
-the `.kpis`, `.charts` and `.toggle` styles are now shared with the Portfolio and Chart pages.
+**Done.** Implemented in `turtle-web` 2026-11-09. The Period tile shows the trading days, with the
+dates as its sub line: the date range overflows a tile at 1366px. Under the KPI row the page has two
+columns, like quantstats' tear sheet: the charts on the left (cumulative return, drawdown, monthly
+returns, distribution) and the numbers on the right (metrics, worst drawdowns) in a 500px column,
+where a third benchmark scrolls rather than squeezing the charts. They wrap, charts first, once the
+charts would get narrower than 560px. The monthly table's cells are tight enough for its thirteen
+columns to fit the chart column at 1366px with two benchmarks. The footer is `AnalyticsCaveats.vue`,
+with a fourth caveat: the benchmarks are buy and hold, not the Portfolio page's shadow benchmarks.
+`ticker`, the series colours and the `.kpis` and `.toggle` styles are shared with the Portfolio and
+Chart pages.
 
 `AnalyticsView.vue`, one `api.analytics()` call through `useLoad`, as on the Portfolio page:
 
@@ -401,8 +405,8 @@ the `.kpis`, `.charts` and `.toggle` styles are now shared with the Portfolio an
 - **Metrics table**: a PrimeVue `DataTable`, one row per metric and one column per series.
   Annualised rows carry a "< 1 year" badge (the `badge warn` class the Close column uses) while
   `trading_days < 252`.
-- **Cumulative return** and **Drawdown**: two `LineChart`s with `percent`, side by side like
-  the Portfolio page's pair, with the same benchmark colours.
+- **Cumulative return** and **Drawdown**: two `LineChart`s with `percent`, one above the other,
+  with the Portfolio page's benchmark colours.
 - **Monthly returns**: `MonthlyReturns`, the portfolio's. A selector switches to a benchmark's.
 - **Distribution of returns**: `BarChart` with a Monthly / Daily toggle. It defaults to daily
   while there are fewer than 12 full months (partial ones do not count), because a handful of monthly bars says little.

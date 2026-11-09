@@ -105,45 +105,25 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
       <KpiTile label="Period" :value="`${analytics.trading_days} trading days`" :sub="`${day(analytics.start)} → ${day(analytics.end)}`" />
     </section>
 
-    <h2>Metrics</h2>
-    <DataTable :value="table" dataKey="key" size="small" stripedRows scrollable class="metrics">
-      <Column header="Metric">
-        <template #body="{ data }">
-          {{ data.label }}
-          <span v-if="data.annualised && underAYear" class="badge warn" title="Annualised from under a year of data">&lt; 1 year</span>
-        </template>
-      </Column>
-      <Column v-for="(s, i) in series" :key="s.symbol" :header="looks[i]!.name" bodyClass="num" headerClass="num">
-        <template #body="{ data }">
-          <span :class="data.cells[i].tone">{{ data.cells[i].text }}</span>
-        </template>
-      </Column>
-    </DataTable>
-
-    <section class="charts">
-      <div>
+    <!-- Two columns, like a quantstats tear sheet: the charts on the left, the numbers on the right. -->
+    <div class="tearsheet">
+      <div class="plots">
         <h2>Cumulative return</h2>
         <LineChart :series="cumulativeSeries" percent />
-      </div>
-      <div>
+
         <h2>Drawdown</h2>
         <LineChart :series="drawdownSeries" percent />
-      </div>
-    </section>
 
-    <!-- Full width: thirteen columns do not fit beside a chart. -->
-    <h2>Monthly returns</h2>
-    <div class="controls">
-      <span class="toggle" role="group" aria-label="Series">
-        <button v-for="(s, i) in series" :key="s.symbol" type="button" :aria-pressed="monthlySeries === s" @click="monthlyOf = i">
-          {{ looks[i]!.name }}
-        </button>
-      </span>
-    </div>
-    <MonthlyReturns v-if="monthlySeries" :monthly="monthlySeries.monthly" :yearly="monthlySeries.yearly" />
+        <h2>Monthly returns</h2>
+        <div class="controls">
+          <span class="toggle" role="group" aria-label="Series">
+            <button v-for="(s, i) in series" :key="s.symbol" type="button" :aria-pressed="monthlySeries === s" @click="monthlyOf = i">
+              {{ looks[i]!.name }}
+            </button>
+          </span>
+        </div>
+        <MonthlyReturns v-if="monthlySeries" :monthly="monthlySeries.monthly" :yearly="monthlySeries.yearly" />
 
-    <section class="charts">
-      <div>
         <h2>Distribution of portfolio returns</h2>
         <div class="controls">
           <span class="toggle" role="group" aria-label="Period">
@@ -153,7 +133,23 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
         </div>
         <BarChart :bins="bins" />
       </div>
-      <div>
+
+      <div class="numbers">
+        <h2>Metrics</h2>
+        <DataTable :value="table" dataKey="key" size="small" stripedRows scrollable class="metrics">
+          <Column header="Metric">
+            <template #body="{ data }">
+              {{ data.label }}
+              <span v-if="data.annualised && underAYear" class="badge warn" title="Annualised from under a year of data">&lt; 1 year</span>
+            </template>
+          </Column>
+          <Column v-for="(s, i) in series" :key="s.symbol" :header="looks[i]!.name" bodyClass="num" headerClass="num">
+            <template #body="{ data }">
+              <span :class="data.cells[i].tone">{{ data.cells[i].text }}</span>
+            </template>
+          </Column>
+        </DataTable>
+
         <h2>Worst portfolio drawdowns</h2>
         <DataTable :value="analytics.drawdowns" dataKey="start" size="small" stripedRows scrollable>
           <template #empty>No drawdowns.</template>
@@ -172,14 +168,33 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
           <Column field="days" header="Calendar days" bodyClass="num" headerClass="num" />
         </DataTable>
       </div>
-    </section>
+    </div>
 
     <AnalyticsCaveats />
   </template>
 </template>
 
 <style scoped>
-.metrics :deep(.p-datatable-thead > tr > th) {
+/* Charts beside a 500px numbers column (the drawdowns table needs 484px; a third benchmark scrolls
+   its metrics). They wrap, charts first, once the charts would get under 560px: no breakpoint. */
+.tearsheet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  align-items: flex-start;
+}
+.plots {
+  flex: 999 1 560px; /* takes nearly all the spare width while side by side */
+  min-width: 0;
+}
+.numbers {
+  flex: 1 1 500px;
+  min-width: 0; /* its tables scroll within the column */
+}
+.tearsheet h2:first-child {
+  margin-top: 0;
+}
+.numbers :deep(.p-datatable-thead > tr > th) {
   white-space: nowrap;
 }
 </style>

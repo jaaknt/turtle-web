@@ -146,6 +146,13 @@ const pnlSeries = computed(() => [
 </template>
 
 <style scoped>
+/* The two charts side by side, stacked on a phone. */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
 /* One-line headers: the short labels above keep the table within 1366px even with long sector names. */
 .positions :deep(.p-datatable-thead > tr > th) {
   white-space: nowrap;

@@ -59,12 +59,13 @@ const rows = computed(() => {
 .monthly-wrap { overflow-x: auto; }
 .monthly {
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
+/* Tight cells: thirteen columns of signed percentages, kept narrow enough to sit beside a sidebar. */
 .monthly th,
 .monthly td {
   border: 1px solid var(--border);
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem 0.35rem;
   white-space: nowrap;
 }
 .monthly th { color: var(--muted); font-weight: 500; }

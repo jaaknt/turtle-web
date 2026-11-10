@@ -80,7 +80,7 @@ const lead = computed(() => {
     benches: series.value.slice(1).map((s, i) => ({ symbol: s.symbol, text: vs(i + 1, m) })),
   }
 })
-const KPI_KEYS: MetricKey[] = ['cagr', 'sharpe', 'max_drawdown', 'last_day']
+const KPI_KEYS: MetricKey[] = ['last_day', 'cagr', 'sharpe', 'max_drawdown']
 const kpis = computed(() =>
   KPI_KEYS.map(metric).map((m) => {
     const { text, tone } = cell(series.value[0], m)

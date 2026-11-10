@@ -67,7 +67,7 @@ function cell(s: Series | undefined, row: MetricRow): { text: string; tone: '' |
 // Formatted once per response, not on every render: one cell per series, in series order.
 const table = computed(() => METRICS.map((m) => ({ ...m, cells: series.value.map((s) => cell(s, m)) })))
 
-// The KPI row: the cumulative return leads, then three more metrics, each with every benchmark's
+// The KPI row: the cumulative return leads, then four more metrics, each with every benchmark's
 // value under the portfolio's. Dashes until the first response.
 const metric = (key: MetricKey): MetricRow => METRICS.find((m) => m.key === key)!
 // 'SPY +8.90%': a benchmark's value under the portfolio's, by series index.
@@ -80,7 +80,7 @@ const lead = computed(() => {
     benches: series.value.slice(1).map((s, i) => ({ symbol: s.symbol, text: vs(i + 1, m) })),
   }
 })
-const KPI_KEYS: MetricKey[] = ['cagr', 'sharpe', 'max_drawdown']
+const KPI_KEYS: MetricKey[] = ['cagr', 'sharpe', 'max_drawdown', 'last_day']
 const kpis = computed(() =>
   KPI_KEYS.map(metric).map((m) => {
     const { text, tone } = cell(series.value[0], m)

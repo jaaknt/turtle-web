@@ -13,7 +13,8 @@ questions for simulated portfolios with [quantstats](https://github.com/ranarous
 This page answers them for the real Lightyear portfolio, at `/analytics`:
 
 1. **Metrics table**: cumulative return, CAGR, volatility, Sharpe, Sortino, Calmar, max
-   drawdown, longest drawdown, best and worst day and month, win rates, beta and correlation.
+   drawdown, longest drawdown, best and worst day and month, the last day's return, win
+   rates, beta and correlation.
    One column for the portfolio and one per benchmark.
 2. **Cumulative return** chart: portfolio vs each benchmark, in percent.
 3. **Drawdown** ("underwater") chart: portfolio vs each benchmark.
@@ -116,6 +117,7 @@ the quantstats function each one is checked against in [Step 4](#step-4--validat
 | Calmar | `CAGR / abs(max drawdown)` | `stats.calmar` |
 | Longest drawdown | The longest drawdown period's `days` (below) | `stats.drawdown_details` |
 | Best / worst day | `max(r)`, `min(r)` | `stats.best`, `stats.worst` |
+| Daily return | `r_n`, the last trading day's return | `r.iloc[-1]`; quantstats has no function for it |
 | Best / worst month | Of the monthly returns below | `stats.best(aggregate="ME")`; not `"month"`, which merges the same month of different years |
 | Win rate, days | Share of non-zero days with `r > 0` | `stats.win_rate` |
 | Win rate, months | The same over monthly returns | `stats.win_rate(aggregate="ME")` |
@@ -205,6 +207,7 @@ class Metrics:
     longest_drawdown_days: int  # calendar days; 0 without a drawdown
     best_day: float
     worst_day: float
+    last_day: float  # the last trading day's return
     best_month: float
     worst_month: float
     win_rate_days: float | None  # of non-zero days; None when every day is 0 (quantstats says 0)
@@ -386,7 +389,8 @@ under it: at most about eight, always 0 and both outer edges. With no bins it sh
 
 ### Step 7 — The page
 
-**Done.** Implemented in `turtle-web` 2026-11-09. The period (trading days and dates) is a line
+**Done.** Implemented in `turtle-web` 2026-11-09; the metrics table gained a Daily return row,
+the last day's return, on 2026-11-10. The period (trading days and dates) is a line
 under the title rather than a tile, since the date range overflows a tile at 1366px; the
 cumulative return leads the KPI row (revised 2026-11-09). Under the KPI row the page has two
 columns, like quantstats' tear sheet: the charts on the left (cumulative return, drawdown, monthly

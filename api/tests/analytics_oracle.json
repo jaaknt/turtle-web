@@ -917,6 +917,7 @@
   "longest_drawdown_days": 45.0,
   "best_day": 0.03442956355743318,
   "worst_day": -0.030593339305074622,
+  "last_day": 0.003,
   "best_month": 0.04806090900118343,
   "worst_month": -0.14691693498805158,
   "win_rate_days": 0.4965753424657534,

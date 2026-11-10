@@ -116,7 +116,7 @@ def test_a_single_loss_sets_the_drawdown_and_the_downside() -> None:
     assert m.sortino == pytest.approx((-0.05 / 3) / math.sqrt(0.04 / 3) * math.sqrt(252))
     assert m.sharpe == pytest.approx((-0.05 / 3) / statistics.stdev([0.10, -0.20, 0.05]) * math.sqrt(252))
     assert m.calmar == pytest.approx(m.cagr / 0.20)
-    assert (m.best_day, m.worst_day) == (0.10, -0.20)
+    assert (m.best_day, m.worst_day, m.last_day) == (0.10, -0.20, 0.05)
     assert m.win_rate_days == pytest.approx(2 / 3)
     assert underwater(r) == pytest.approx([0, -0.20, 1.1 * 0.8 * 1.05 / 1.1 - 1])
     assert rounded(drawdown_periods(r), "depth") == [DrawdownPeriod(day(1), day(1), day(2), -0.20, 2, ongoing=True)]

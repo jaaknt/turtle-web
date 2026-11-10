@@ -140,6 +140,7 @@ class Metrics(BaseModel):
     longest_drawdown_days: int  # calendar days
     best_day: float
     worst_day: float
+    last_day: float  # the last trading day's return
     best_month: float
     worst_month: float
     win_rate_days: float | None  # of non-zero days

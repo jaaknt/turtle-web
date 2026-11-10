@@ -81,6 +81,7 @@ class Metrics:
     longest_drawdown_days: int  # calendar days, as quantstats counts them; 0 without a drawdown
     best_day: float
     worst_day: float
+    last_day: float  # the last trading day's return
     best_month: float
     worst_month: float
     win_rate_days: float | None  # of non-zero days; None when every day is 0
@@ -229,6 +230,7 @@ def metrics(r: Returns, benchmark: Returns | None = None) -> Metrics:
         longest_drawdown_days=max((p.days for p in drawdowns), default=0),
         best_day=max(values),
         worst_day=min(values),
+        last_day=values[-1],
         best_month=max(months),
         worst_month=min(months),
         win_rate_days=_win_rate(values),

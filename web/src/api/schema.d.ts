@@ -372,6 +372,8 @@ export interface components {
             best_day: number;
             /** Worst Day */
             worst_day: number;
+            /** Last Day */
+            last_day: number;
             /** Best Month */
             best_month: number;
             /** Worst Month */

@@ -45,6 +45,7 @@ def figures(r: Returns, benchmark: Returns) -> dict[str, float]:
         "longest_drawdown_days": details["days"].max() if len(details) else 0,
         "best_day": s.best(ret),
         "worst_day": s.worst(ret),
+        "last_day": ret.iloc[-1],
         "best_month": s.best(ret, aggregate="ME"),
         "worst_month": s.worst(ret, aggregate="ME"),
         "win_rate_days": s.win_rate(ret),

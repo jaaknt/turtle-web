@@ -50,6 +50,7 @@ const METRICS: MetricRow[] = [
   { label: 'Longest drawdown', key: 'longest_drawdown_days', fmt: days },
   { label: 'Best day', key: 'best_day', fmt: pct, signed: true },
   { label: 'Worst day', key: 'worst_day', fmt: pct, signed: true },
+  { label: 'Daily return', key: 'last_day', fmt: pct, signed: true },
   { label: 'Best month', key: 'best_month', fmt: pct, signed: true },
   { label: 'Worst month', key: 'worst_month', fmt: pct, signed: true },
   { label: 'Win rate, days', key: 'win_rate_days', fmt: share },

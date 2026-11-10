@@ -396,10 +396,12 @@ cumulative return leads the KPI row (revised 2026-11-09). Under the KPI row the 
 columns, like quantstats' tear sheet: the charts on the left (cumulative return, drawdown, monthly
 returns, distribution) and the numbers on the right (metrics, worst drawdowns) in a column as wide
 as its tables. They wrap, charts first, once the charts would get narrower than 560px. The monthly
-table's cells are tight enough for its thirteen columns to fit the chart column at 1366px with up to
-four benchmarks (nothing caps the list). The footer is `AnalyticsCaveats.vue`, with a fourth caveat:
-the benchmarks are buy and hold, not the Portfolio page's shadow benchmarks. `ticker`, the series
-colours and the `.kpis` and `.toggle` styles are shared with the Portfolio and Chart pages.
+table spans the chart column, its month and total columns sharing the width evenly (revised
+2026-11-10); its cells are tight enough for its thirteen columns to fit the chart column at 1366px
+with up to four benchmarks (nothing caps the list). The footer is `AnalyticsCaveats.vue`, with a
+fourth caveat: the benchmarks are buy and hold, not the Portfolio page's shadow benchmarks.
+`ticker`, the series colours and the `.kpis` and `.toggle` styles are shared with the Portfolio and
+Chart pages.
 
 `AnalyticsView.vue`, one `api.analytics()` call through `useLoad`, as on the Portfolio page:
 

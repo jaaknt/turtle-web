@@ -57,10 +57,14 @@ const rows = computed(() => {
 
 <style scoped>
 .monthly-wrap { overflow-x: auto; }
+/* As wide as the charts above and below it; on a narrow screen it keeps its content width and scrolls. */
 .monthly {
+  width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
 }
+/* The twelve months and the year total share the width evenly; the year label keeps the rest. */
+.monthly .num { width: 7.5%; }
 /* Tight cells: thirteen columns of signed percentages fit beside another column. */
 .monthly th,
 .monthly td {

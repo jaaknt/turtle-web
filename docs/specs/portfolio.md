@@ -401,8 +401,8 @@ colours and the `.kpis` and `.toggle` styles are shared with the Portfolio and C
 
 - **Period line** under the title: `trading_days` trading days, `start` → `end`.
 - **KPI row** (`KpiTile`), led by **cumulative return** in a tile twice as wide, with every
-  benchmark's cumulative return under it. Then CAGR, Sharpe and max drawdown, each with the first
-  benchmark's value as the `sub` line. Dimmed dashes until the first response, as on the
+  benchmark's cumulative return under it. Then CAGR, Sharpe and max drawdown, each with every
+  benchmark's value under it (revised 2026-11-10). Dimmed dashes until the first response, as on the
   Portfolio page.
 - **Left column**, the charts:
   - **Cumulative return** and **Drawdown**: two `LineChart`s with `percent`, one above the other,

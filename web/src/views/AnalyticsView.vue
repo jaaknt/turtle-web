@@ -66,8 +66,8 @@ function cell(s: Series | undefined, row: MetricRow): { text: string; tone: '' |
 // Formatted once per response, not on every render: one cell per series, in series order.
 const table = computed(() => METRICS.map((m) => ({ ...m, cells: series.value.map((s) => cell(s, m)) })))
 
-// The KPI row: the cumulative return leads, with every benchmark's under it; three more metrics
-// follow, each with the first benchmark's value as the sub line. Dashes until the first response.
+// The KPI row: the cumulative return leads, then three more metrics, each with every benchmark's
+// value under the portfolio's. Dashes until the first response.
 const metric = (key: MetricKey): MetricRow => METRICS.find((m) => m.key === key)!
 // 'SPY +8.90%': a benchmark's value under the portfolio's, by series index.
 const vs = (i: number, m: MetricRow): string => `${looks.value[i]!.name} ${cell(series.value[i], m).text}`
@@ -83,7 +83,7 @@ const KPI_KEYS: MetricKey[] = ['cagr', 'sharpe', 'max_drawdown']
 const kpis = computed(() =>
   KPI_KEYS.map(metric).map((m) => {
     const { text, tone } = cell(series.value[0], m)
-    return { label: m.label, value: text, tone, sub: series.value.length > 1 ? vs(1, m) : undefined }
+    return { label: m.label, value: text, tone, benches: series.value.slice(1).map((s, i) => ({ symbol: s.symbol, text: vs(i + 1, m) })) }
   }),
 )
 
@@ -117,7 +117,9 @@ const bins = computed(() => analytics.value?.[distribution.value === 'monthly' ?
     <KpiTile lead :label="lead.label" :value="lead.text" :tone="lead.tone">
       <div v-for="b in lead.benches" :key="b.symbol" class="kpi-sub placeholder">{{ b.text }}</div>
     </KpiTile>
-    <KpiTile v-for="k in kpis" :key="k.label" :label="k.label" :value="k.value" :sub="k.sub" :tone="k.tone" subTone="" />
+    <KpiTile v-for="k in kpis" :key="k.label" :label="k.label" :value="k.value" :tone="k.tone">
+      <div v-for="b in k.benches" :key="b.symbol" class="kpi-sub">{{ b.text }}</div>
+    </KpiTile>
   </section>
 
   <template v-if="analytics && portfolio">

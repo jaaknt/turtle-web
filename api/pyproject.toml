@@ -7,15 +7,15 @@ readme = "../README.md"  # outside api/: fine for uv sync and `uv build --wheel`
 license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.162.2",
-    "psycopg[binary,pool]>=3.3.8",
-    "pydantic-settings>=2.16.2",
-    "sqlalchemy>=2.1.8",
+    "fastapi>=0.165.0",
+    "psycopg[binary,pool]>=3.3.9",
+    "pydantic-settings>=2.16.3",
+    "sqlalchemy>=2.1.9",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [build-system]
-requires = ["uv_build>=0.13.7,<0.14.0"]
+requires = ["uv_build>=0.13.9,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -23,11 +23,11 @@ module-root = ""  # flat layout: the package is api/turtleweb, not api/src/turtl
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
+    "httpx2>=2.16.2",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.4",
+    "ruff>=0.17.6",
 ]
 
 [tool.ruff]
